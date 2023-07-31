@@ -7,7 +7,7 @@ import dd_exp
 import datasets as datasets_
 
 N_EPOCHS = 100
-N_SAMPLES = 50000
+N_SAMPLES = 4000
 BATCH_SIZE = 64
 
 
