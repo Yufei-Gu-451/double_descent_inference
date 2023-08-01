@@ -343,7 +343,8 @@ def decision_boundary_test():
                     if np.linalg.norm(vector) == 0:
                         break
                     n = np.linalg.norm(distance) / np.linalg.norm(vector)
-                    db_distance_list.append(n)
+                    #db_distance_list.append(n)
+                    db_distance_list.append(np.linalg.norm(distance))
 
             decision_boundary_distance[-1].append(np.mean(np.array(db_distance_list)))
             print(i, decision_boundary_distance[-1])
@@ -388,11 +389,11 @@ def decision_boundary_test():
     ax.grid()
 
     plt.title('Decision Boundary Distance Test')
-    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/Decision Boundary Distance Test.png' % (N_SAMPLES, TEST_GROUP))
+    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/Decision Boundary Distance Test-2.png' % (N_SAMPLES, TEST_GROUP))
 
 if __name__ == '__main__':
-    knn_prediction_test(1)
-    knn_prediction_test(5)
-    knn_prediction_test(10)
+    #knn_prediction_test(1)
+    #knn_prediction_test(5)
+    #knn_prediction_test(10)
 
     decision_boundary_test()
