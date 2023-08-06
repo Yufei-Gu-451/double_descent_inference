@@ -15,7 +15,7 @@ import datasets
 # Training Settings
 DATASET = 'MNIST'
 
-N_EPOCHS = 100
+N_EPOCHS = 4000
 N_SAMPLES = 4000
 BATCH_SIZE = 64
 

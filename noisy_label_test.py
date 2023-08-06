@@ -45,6 +45,17 @@ def decomposition_by_SVD(mat, k):
     imgMat_new = Uk @ Sk @ Vk
     return Uk
 
+def get_train_losses(dictionary_path):
+    with open(dictionary_path, "r", newline="") as infile:
+        reader = csv.DictReader(infile)
+        train_losses = []
+
+        for row in reader:
+            if int(row['Epoch']) == N_EPOCHS:
+                train_losses.append(float(row['Train Loss']))
+
+        return train_losses
+
 def get_test_losses(dictionary_path):
     with open(dictionary_path, "r", newline="") as infile:
         reader = csv.DictReader(infile)
@@ -91,7 +102,7 @@ def get_parameters(dictionary_path):
 
 def load_dataset(dataset_path):
     org_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
-    noisy_train_dataset = torch.load(os.path.join(dataset_path, 'subset-noise-20%.pth'))
+    noisy_train_dataset = torch.load(os.path.join(dataset_path, f'subset-noise-{int(label_noise_ratio * 100)}%.pth'))
 
     assert (len(org_train_dataset) == len(noisy_train_dataset))
 
@@ -204,7 +215,6 @@ def test(model, test_dataloader):
 def knn_prediction_test():
     print('\nKNN Prediction Test\n')
     knn_1_accuracy_list, knn_5_accuracy_list, knn_10_accuracy_list = [], [], []
-    train_accuracy, test_accuracy, test_losses = [], [], []
     clean_train_accuracy, noisy_train_accuracy = [], []
 
     for i, test_number in enumerate(TEST_NUMBERS):
@@ -257,55 +267,18 @@ def knn_prediction_test():
             knn_10_accuracy_list[-1].append(correct / n_noisy_data)
             print('Test No = %d ; Hidden Units = %d ; Correct = %d ; k = 10' % (test_number, n, correct))
 
-        # Get Parameters and dataset Losses
-        dictionary_path = os.path.join(directory, "dictionary.csv")
-        train_accuracy.append(get_train_accuracy(dictionary_path))
-        test_accuracy.append(get_test_accuracy(dictionary_path))
-        test_losses.append(get_test_losses(dictionary_path))
-
     knn_1_accuracy_list = np.mean(np.array(knn_1_accuracy_list), axis=0)
     knn_5_accuracy_list = np.mean(np.array(knn_5_accuracy_list), axis=0)
     knn_10_accuracy_list = np.mean(np.array(knn_10_accuracy_list), axis=0)
-    train_accuracy = np.mean(np.array(train_accuracy), axis=0)
-    test_accuracy = np.mean(np.array(test_accuracy), axis=0)
 
-    # Plot the Diagram
-    plt.figure(figsize=(10, 7))
-    ax1 = plt.axes()
+    with open(f"assets/{DATASET}/N=%d-3D/TEST-%d/knn_accuracy_list.csv" % (N_SAMPLES, TEST_GROUP), 'w') as f:
+        #f.write('knn_1_accuracy_list,knn_5_accuracy_list,knn_10_accuracy_list\n')
 
-    if DATASET == 'MNIST':
-        scale_function = (lambda x: x ** (1 / 3), lambda x: x ** 3)
-        ax1.set_xscale('function', functions=scale_function)
-
-    ln1 = ax1.plot(hidden_units, knn_1_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 1)',
-                   color='orange')
-    ln2 = ax1.plot(hidden_units, knn_5_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 5)',
-                   color='green')
-    ln3 = ax1.plot(hidden_units, knn_10_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 10)',
-                   color='cyan')
-    ax1.set_ylabel('KNN Label Accuracy (100%)')
-
-    ax2 = ax1.twinx()
-    ln4 = ax2.plot(hidden_units, train_accuracy, marker='o', label='Train Accuracy (Train Dataset)', color='red')
-    ln5 = ax2.plot(hidden_units, test_accuracy, marker='o', label='Test Accuracy (Test Dataset)', color='blue')
-    ax2.set_xlabel('Number of Hidden Neurons (N)')
-    ax2.set_ylabel('Accuracy (100%)')
-
-    if DATASET == 'MNIST':
-        plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
-
-    lns = ln1 + ln2 + ln3 + ln4 + ln5
-    labs = [l.get_label() for l in lns]
-    ax1.legend(lns, labs, loc=0)
-    ax1.grid()
-
-    plt.title(f'Learned Feature Label Accuracy with K-Nearest Neighbour ({DATASET})')
-    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/KNN Feature Extraction Test.png' % (N_SAMPLES, TEST_GROUP))
-
+        for i in range(len(knn_1_accuracy_list)):
+            f.write(f'%lf,%lf,%lf\n' % (knn_1_accuracy_list[i], knn_5_accuracy_list[i], knn_10_accuracy_list[i]))
 
 def decision_boundary_test():
     print('\nDecision Boundary Test\n')
-    train_accuracy, test_accuracy, test_losses = [], [], []
     decision_boundary_distance = []
 
     for i, test_number in enumerate(TEST_NUMBERS):
@@ -359,48 +332,90 @@ def decision_boundary_test():
             decision_boundary_distance[-1].append(np.mean(np.array(db_distance_list)))
             print(i, decision_boundary_distance[-1])
 
+    decision_boundary_distance = np.mean(np.array(decision_boundary_distance), axis=0)
+
+    with open(f"assets/{DATASET}/N=%d-3D/TEST-%d/decision_boundary_distance.csv" % (N_SAMPLES, TEST_GROUP), 'w') as f:
+        #f.write('decesion_boundary_distance\n')
+
+        for item in decision_boundary_distance:
+            f.write('%lf\n' % item)
+
+
+if __name__ == '__main__':
+    train_accuracy, test_accuracy, train_losses, test_losses = [], [], [], []
+
+    for i, test_number in enumerate(TEST_NUMBERS):
+        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/epoch=%d-noise-%d-model-%d" % (
+            N_SAMPLES, TEST_GROUP, N_EPOCHS, label_noise_ratio * 100, test_number)
+
         # Get Parameters and dataset Losses
         dictionary_path = os.path.join(directory, "dictionary.csv")
         train_accuracy.append(get_train_accuracy(dictionary_path))
         test_accuracy.append(get_test_accuracy(dictionary_path))
+        train_losses.append(get_train_losses(dictionary_path))
         test_losses.append(get_test_losses(dictionary_path))
 
     train_accuracy = np.mean(np.array(train_accuracy), axis=0)
     test_accuracy = np.mean(np.array(test_accuracy), axis=0)
+    train_losses = np.mean(np.array(train_losses), axis=0)
     test_losses = np.mean(np.array(test_losses), axis=0)
-    decision_boundary_distance = np.mean(np.array(decision_boundary_distance), axis=0)
 
-    # Plot the Diagram
-    plt.figure(figsize=(10, 7))
-    ax = plt.axes()
-
-    if DATASET == 'MNIST':
-        scale_function = (lambda x: x ** (1 / 3), lambda x: x ** 3)
-        ax.set_xscale('function', functions=scale_function)
-
-    ln1 = ax.plot(hidden_units, decision_boundary_distance, marker='o',
-                      label='Average Distance Ratio (R)', color='red')
-    ax.set_xlabel('Number of Hidden Neurons (N)')
-    ax.set_ylabel('Distance Ratio (R)')
-    ax.set_ylim([0, 1.8])
-
-    ax2 = ax.twinx()
-    ln2 = ax2.plot(hidden_units, test_losses, marker='o', label='Test Losses (Test Dataset)', color='blue')
-    ax2.set_ylabel('Cross Entropy Loss')
-    ax2.set_ylim([0, 2.75])
-
-    if DATASET == 'MNIST':
-        plt.xticks([1, 5, 15, 40, 100, 250, 500, 1000])
-
-    lns = ln1 + ln2
-    labs = [l.get_label() for l in lns]
-    ax.legend(lns, labs, loc=0)
-    ax.grid()
-
-    plt.title(f'Average Decision Ratio (R) to Decision Boundary ({DATASET})')
-    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/Decision Boundary Distance Test.png' % (N_SAMPLES, TEST_GROUP))
-
-if __name__ == '__main__':
     #knn_prediction_test()
 
-    decision_boundary_test()
+    #decision_boundary_test()
+
+    knn_1_accuracy_list, knn_5_accuracy_list, knn_10_accuracy_list = [], [], []
+
+    with open(f"assets/{DATASET}/N=%d-3D/TEST-%d/knn_accuracy_list.csv" % (N_SAMPLES, TEST_GROUP), 'r') as f:
+        csvFile = csv.reader(f)
+        for lines in csvFile:
+            knn_1_accuracy_list.append(float(lines[0]))
+            knn_5_accuracy_list.append(float(lines[1]))
+            knn_10_accuracy_list.append(float(lines[2]))
+
+    # Plot the Diagram
+    scale_function = (lambda x: x ** (1 / 3), lambda x: x ** 3)
+
+    fig, (ax1, ax3) = plt.subplots(nrows=2, ncols=1, figsize=(6, 8))
+
+    if DATASET == 'MNIST':
+        ax1.set_xscale('function', functions=scale_function)
+        ax1.set_xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+        ax3.set_xscale('function', functions=scale_function)
+        ax3.set_xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+
+    # Subplot 1
+    ln1 = ax1.plot(hidden_units, train_accuracy, marker='o', label='Train Accuracy', color='red')
+    ln2 = ax1.plot(hidden_units, test_accuracy, marker='o', label='Test Accuracy', color='blue')
+    #ax1.set_xlabel('Number of Hidden Neurons (N)')
+    ax1.set_ylabel('Accuracy (100%)')
+
+    ax2 = ax1.twinx()
+    ln3 = ax2.plot(hidden_units, knn_1_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 1)',
+                   color='orange')
+    ln4 = ax2.plot(hidden_units, knn_5_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 5)',
+                   color='green')
+    ln5 = ax2.plot(hidden_units, knn_10_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 10)',
+                   color='cyan')
+    ax2.set_ylabel('KNN Label Accuracy (100%)')
+    ax2.set_ylim([0, 1])
+
+    lns = ln1 + ln2 + ln3 + ln4 + ln5
+    labs = [l.get_label() for l in lns]
+    ax1.legend(lns, labs, loc=0)
+    ax1.grid()
+
+    # Subplot 2
+    ln6 = ax3.plot(hidden_units, train_losses, marker='o', label='Train Losses', color='red')
+    ln7 = ax3.plot(hidden_units, test_losses, marker='o', label='Test Losses', color='blue')
+    ax3.set_xlabel('Number of Hidden Neurons (N)')
+    ax3.set_ylabel('Cross Entropy Loss')
+
+    lns = ln6 + ln7
+    labs = [l.get_label() for l in lns]
+    ax3.legend(lns, labs, loc=0)
+    ax3.grid()
+
+    # Plot Title and Save
+    plt.title(f'Experiment Results on {DATASET} (N=%d, p=%d%%)' % (N_SAMPLES, label_noise_ratio * 100))
+    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/Experiment Result.png' % (N_SAMPLES, TEST_GROUP))
