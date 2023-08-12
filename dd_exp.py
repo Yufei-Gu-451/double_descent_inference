@@ -13,20 +13,19 @@ import datasets
 
 
 # Training Settings
-DATASET = 'MNIST'
+#DATASET = 'MNIST'
+#N_SAMPLES = 4000
 
-N_EPOCHS = 4000
-N_SAMPLES = 4000
-BATCH_SIZE = 64
+DATASET = 'CIFAR-10'
+N_SAMPLES = 50000
 
-TEST_GROUP = 2
-TEST_NUMBERS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-
+TEST_GROUP = 0
+TEST_NUMBERS = [0]
 label_noise_ratio = 0.1
 
-learning_rate_decay = True
-learning_rate = 0.1
 
+N_EPOCHS = 4000
+BATCH_SIZE = 64
 save_model = True
 
 # ------------------------------------------------------------------------------------------
@@ -197,25 +196,20 @@ def train_and_evaluate_model(model, device, trainloader, testloader, optimizer, 
 
     parameters = sum(p.numel() for p in model.parameters())
     n_hidden_units = model.n_hidden_units
-    lr = optimizer.param_groups[0]['lr']
 
     for epoch in range(1, N_EPOCHS + 1):
         model, train_loss, train_acc = train(model, device, trainloader, optimizer, criterion)
         print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
 
-        if epoch % 50 == 0:
+        if epoch % 100 == 0:
             test_loss, test_acc = test(model, device, testloader)
 
+            lr = optimizer.param_groups[0]['lr']
             status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc, lr,
                         dictionary_path=dictionary_path)
 
-        if learning_rate_decay:
-            optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + epoch // 50, 0.5)
-            #if DATASET == 'MNIST':
-            #    optimizer.param_groups[0]['lr'] = learning_rate / pow(1 + epoch // 50, 0.5)
-            #elif DATASET == 'CIFAR-10':
-            #    optimizer.param_groups[0]['lr'] = learning_rate / pow(epoch, 0.5)
-            print("Learning Rate : ", optimizer.param_groups[0]['lr'])
+        optimizer.param_groups[0]['lr'] = 0.1 / pow(epoch, 0.5)
+        print("Learning Rate : ", optimizer.param_groups[0]['lr'])
 
     '''
     if tSNE_Visualization:
@@ -237,7 +231,7 @@ if __name__ == '__main__':
 
     # Initialization of hidden units
     if DATASET == 'MNIST':
-        hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
+        hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
                         120, 150, 200, 400, 600, 800, 1000]
     elif DATASET == 'CIFAR-10':
         hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
@@ -281,7 +275,7 @@ if __name__ == '__main__':
             model = get_model(hidden_unit, device)
 
             # Set the optimizer and criterion
-            optimizer = torch.optim.SGD(model.parameters(), lr=learning_rate)
+            optimizer = torch.optim.SGD(model.parameters(), lr=0.1)
             criterion = torch.nn.CrossEntropyLoss()
             criterion = criterion.to(device)
 

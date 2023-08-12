@@ -1,8 +1,6 @@
-import sklearn.decomposition
 import torch
 import torchvision.datasets as datasets
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import numpy as np
 import csv
@@ -12,11 +10,14 @@ import dd_exp
 import datasets
 import models
 
+
 DATASET = 'MNIST'
 
 if DATASET == 'MNIST':
-    hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
-                    120, 150, 200, 400, 600, 800, 1000]
+    #hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
+    #                120, 150, 200, 400, 600, 800, 1000]
+    hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90,
+                    100, 120, 150, 200, 400, 600, 800, 1000]
 elif DATASET == 'CIFAR-10':
     hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
@@ -24,9 +25,8 @@ N_EPOCHS = 4000
 N_SAMPLES = 4000
 BATCH_SIZE = 64
 
-TEST_GROUP = 1
-TEST_NUMBERS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
-
+TEST_GROUP = 6
+TEST_NUMBERS = [0]
 label_noise_ratio = 0.2
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -102,11 +102,15 @@ def get_parameters(dictionary_path):
 
 def load_dataset(dataset_path):
     org_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
-    noisy_train_dataset = torch.load(os.path.join(dataset_path, f'subset-noise-{int(label_noise_ratio * 100)}%.pth'))
+    if label_noise_ratio > 0:
+        noisy_train_dataset = torch.load(os.path.join(dataset_path, f'subset-noise-{int(label_noise_ratio * 100)}%.pth'))
+    elif label_noise_ratio == 0:
+        noisy_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
 
     assert (len(org_train_dataset) == len(noisy_train_dataset))
 
     return org_train_dataset, noisy_train_dataset
+
 
 def load_model(checkpoint_path, hidden_unit):
     if DATASET == 'MNIST':
@@ -215,20 +219,21 @@ def test(model, test_dataloader):
 def knn_prediction_test():
     print('\nKNN Prediction Test\n')
     knn_1_accuracy_list, knn_5_accuracy_list, knn_10_accuracy_list = [], [], []
-    clean_train_accuracy, noisy_train_accuracy = [], []
+    #clean_train_accuracy, noisy_train_accuracy = [], []
 
     for i, test_number in enumerate(TEST_NUMBERS):
         directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/epoch=%d-noise-%d-model-%d" % (
         N_SAMPLES, TEST_GROUP, N_EPOCHS, label_noise_ratio * 100, test_number)
         dataset_path = os.path.join(directory, 'dataset')
+
         clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
             get_clean_noisy_dataloader(dataset_path)
 
         knn_1_accuracy_list.append([])
         knn_5_accuracy_list.append([])
         knn_10_accuracy_list.append([])
-        clean_train_accuracy.append([])
-        noisy_train_accuracy.append([])
+        #clean_train_accuracy.append([])
+        #noisy_train_accuracy.append([])
 
         for n in hidden_units:
             # Initialize model with pretrained weights
@@ -237,10 +242,10 @@ def knn_prediction_test():
             model.eval()
 
             # Test the clean training data
-            clean_train_loss, clean_train_acc = test(model, clean_label_dataloader)
-            clean_train_accuracy[-1].append(clean_train_acc)
-            noisy_train_loss, noisy_train_acc = test(model, noisy_label_dataloader_n)
-            noisy_train_accuracy[-1].append(noisy_train_acc)
+            # clean_train_loss, clean_train_acc = test(model, clean_label_dataloader)
+            # clean_train_accuracy[-1].append(clean_train_acc)
+            # noisy_train_loss, noisy_train_acc = test(model, noisy_label_dataloader_n)
+            # noisy_train_accuracy[-1].append(noisy_train_acc)
 
             # Obtain the hidden features of the clean data set
             data, hidden_features, predicts, labels = get_hidden_features(model, clean_label_dataloader)
@@ -360,21 +365,22 @@ if __name__ == '__main__':
     train_losses = np.mean(np.array(train_losses), axis=0)
     test_losses = np.mean(np.array(test_losses), axis=0)
 
-    #knn_prediction_test()
+    if label_noise_ratio > 0:
+        knn_prediction_test()
 
-    #decision_boundary_test()
+        knn_1_accuracy_list, knn_5_accuracy_list, knn_10_accuracy_list = [], [], []
 
-    knn_1_accuracy_list, knn_5_accuracy_list, knn_10_accuracy_list = [], [], []
+        with open(f"assets/{DATASET}/N=%d-3D/TEST-%d/knn_accuracy_list.csv" % (N_SAMPLES, TEST_GROUP), 'r') as f:
+            csvFile = csv.reader(f)
+            for lines in csvFile:
+                knn_1_accuracy_list.append(float(lines[0]))
+                knn_5_accuracy_list.append(float(lines[1]))
+                knn_10_accuracy_list.append(float(lines[2]))
 
-    with open(f"assets/{DATASET}/N=%d-3D/TEST-%d/knn_accuracy_list.csv" % (N_SAMPLES, TEST_GROUP), 'r') as f:
-        csvFile = csv.reader(f)
-        for lines in csvFile:
-            knn_1_accuracy_list.append(float(lines[0]))
-            knn_5_accuracy_list.append(float(lines[1]))
-            knn_10_accuracy_list.append(float(lines[2]))
+    # decision_boundary_test()
 
     # Plot the Diagram
-    scale_function = (lambda x: x ** (1 / 3), lambda x: x ** 3)
+    scale_function = (lambda x: x ** (1 / 4), lambda x: x ** 4)
 
     fig, (ax1, ax3) = plt.subplots(nrows=2, ncols=1, figsize=(6, 8))
 
@@ -389,18 +395,23 @@ if __name__ == '__main__':
     ln2 = ax1.plot(hidden_units, test_accuracy, marker='o', label='Test Accuracy', color='blue')
     #ax1.set_xlabel('Number of Hidden Neurons (N)')
     ax1.set_ylabel('Accuracy (100%)')
+    ax1.set_ylim([0, 1.05])
 
-    ax2 = ax1.twinx()
-    ln3 = ax2.plot(hidden_units, knn_1_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 1)',
-                   color='orange')
-    ln4 = ax2.plot(hidden_units, knn_5_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 5)',
-                   color='green')
-    ln5 = ax2.plot(hidden_units, knn_10_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 10)',
-                   color='cyan')
-    ax2.set_ylabel('KNN Label Accuracy (100%)')
-    ax2.set_ylim([0, 1])
+    if label_noise_ratio > 0:
+        ax2 = ax1.twinx()
+        ln3 = ax2.plot(hidden_units, knn_1_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 1)',
+                       color='orange')
+        ln4 = ax2.plot(hidden_units, knn_5_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 5)',
+                       color='green')
+        ln5 = ax2.plot(hidden_units, knn_10_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 10)',
+                       color='cyan')
+        ax2.set_ylabel('KNN Label Accuracy (100%)')
+        ax2.set_ylim([0, 1.05])
 
-    lns = ln1 + ln2 + ln3 + ln4 + ln5
+        lns = ln1 + ln2 + ln3 + ln4 + ln5
+    elif label_noise_ratio == 0:
+        lns = ln1 + ln2
+
     labs = [l.get_label() for l in lns]
     ax1.legend(lns, labs, loc=0)
     ax1.grid()
