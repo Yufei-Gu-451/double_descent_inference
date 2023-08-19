@@ -19,13 +19,14 @@ import datasets
 DATASET = 'CIFAR-10'
 N_SAMPLES = 50000
 
-TEST_GROUP = 1
+TEST_GROUP = 2
 TEST_NUMBERS = [0]
-label_noise_ratio = 0.1
+label_noise_ratio = 0.2
 
-N_EPOCHS = 100
+
+N_EPOCHS = 500
 BATCH_SIZE = 128
-learning_rate = 0.01
+learning_rate = 0.05
 save_model = True
 
 # ------------------------------------------------------------------------------------------
@@ -208,7 +209,7 @@ def train_and_evaluate_model(model, device, trainloader, testloader, optimizer, 
             status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc, lr,
                         dictionary_path=dictionary_path)
 
-        optimizer.param_groups[0]['lr'] = learning_rate / pow(epoch * 10, 0.5)
+        optimizer.param_groups[0]['lr'] = learning_rate / pow(epoch, 0.5)
         print("Learning Rate : ", optimizer.param_groups[0]['lr'])
 
     '''

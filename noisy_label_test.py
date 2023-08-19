@@ -11,7 +11,7 @@ import datasets
 import models
 
 
-DATASET = 'MNIST'
+DATASET = 'CIFAR-10'
 
 if DATASET == 'MNIST':
     #hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
@@ -19,13 +19,13 @@ if DATASET == 'MNIST':
     hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90,
                     100, 120, 150, 200, 400, 600, 800, 1000]
 elif DATASET == 'CIFAR-10':
-    hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+    hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
-N_EPOCHS = 4000
-N_SAMPLES = 4000
+N_EPOCHS = 500
+N_SAMPLES = 50000
 BATCH_SIZE = 64
 
-TEST_GROUP = 6
+TEST_GROUP = 2
 TEST_NUMBERS = [0]
 label_noise_ratio = 0.2
 
