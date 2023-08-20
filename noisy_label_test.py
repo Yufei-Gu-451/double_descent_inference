@@ -21,7 +21,7 @@ if DATASET == 'MNIST':
 elif DATASET == 'CIFAR-10':
     hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
-N_EPOCHS = 500
+N_EPOCHS = 100
 N_SAMPLES = 50000
 BATCH_SIZE = 64
 

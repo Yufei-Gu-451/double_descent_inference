@@ -8,6 +8,8 @@ import os
 import models
 import datasets
 
+from datetime import datetime
+
 
 # ------------------------------------------------------------------------------------------
 
@@ -19,13 +21,13 @@ import datasets
 DATASET = 'CIFAR-10'
 N_SAMPLES = 50000
 
-TEST_GROUP = 1
+TEST_GROUP = 0
 TEST_NUMBERS = [0]
-label_noise_ratio = 0.1
+label_noise_ratio = 0.0
 
-N_EPOCHS = 100
+
 BATCH_SIZE = 128
-learning_rate = 0.01
+learning_rate = 0.1
 save_model = True
 
 # ------------------------------------------------------------------------------------------
@@ -72,32 +74,6 @@ def get_model(hidden_unit, device):
 
 # ------------------------------------------------------------------------------------------
 
-
-# Model Training
-def train(model, device, train_dataloader, optimizer, criterion):
-    model.train()
-    cumulative_loss, correct, total = 0.0, 0, 0
-
-    for idx, (inputs, labels) in enumerate(train_dataloader):
-        labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-
-        optimizer.zero_grad()
-        outputs = model(inputs)
-        loss = criterion(outputs, labels)
-        loss.backward()
-        optimizer.step()
-
-        cumulative_loss += loss.item()
-        _, predicted = outputs.max(1)
-        total += labels.size(0)
-        correct += predicted.eq(labels.argmax(1)).sum().item()
-
-    train_loss = cumulative_loss / len(train_dataloader)
-    train_acc = correct / total
-
-    return model, train_loss, train_acc
 
 
 # Model testing
@@ -161,24 +137,26 @@ def model_t_sne(model, trainloader, hidden_unit):
     plt.savefig(os.path.join(tsne_path, 't-SNE_Hidden_Features_%d.jpg' % hidden_unit))
 '''
 
-def model_save(model, epoch, test_accuracy, checkpoint_path):
+def model_save(model, gradient_step, test_accuracy, checkpoint_path):
     state = {
         'net': model.state_dict(),
         'acc': test_accuracy,
-        'epoch': epoch,
+        'gradient_step': gradient_step,
     }
 
-    torch.save(state, os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
+    torch.save(state, os.path.join(checkpoint_path, 'Model_State_Dict_%d.pth' % hidden_unit))
     print("Torch saved successfully!\n")
 
 
-def status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc, lr, dictionary_path):
+def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr, time,
+                dictionary_path):
     print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
           "Test Acc : %.3f\n" % (n_hidden_units, parameters, train_loss, train_acc, test_loss, test_acc))
 
     print('Writing to a csv file...')
-    dictionary = {'Hidden Neurons': hidden_unit, 'Epoch': epoch, 'Parameters': parameters, 'Train Loss': train_loss,
-                  'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc, 'Learning Rate': lr}
+    dictionary = {'Hidden Neurons': hidden_unit, 'Gradient Steps': gradient_step, 'Parameters': parameters,
+                  'Train Loss': train_loss, 'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc,
+                  'Learning Rate': lr, 'Time Cost': time}
 
 
     with open(dictionary_path, "a", newline="") as fp:
@@ -191,25 +169,58 @@ def status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_l
 
 
 # Train and Evalute the model
-def train_and_evaluate_model(model, device, trainloader, testloader, optimizer, criterion, dictionary_path, checkpoint_path):
+def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, optimizer, criterion, dictionary_path, checkpoint_path):
+    start_time = datetime.now()
+
     train_loss, train_acc, test_loss, test_acc, epoch = 0.0, 0.0, 0.0, 0.0, 0
 
     parameters = sum(p.numel() for p in model.parameters())
     n_hidden_units = model.n_hidden_units
 
-    for epoch in range(1, N_EPOCHS + 1):
-        model, train_loss, train_acc = train(model, device, trainloader, optimizer, criterion)
-        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (epoch, train_loss, train_acc))
+    gradient_step, gs_count = 0, 0
 
-        if epoch % 100 == 0:
-            test_loss, test_acc = test(model, device, testloader)
+    while gradient_step <= 500000:
 
-            lr = optimizer.param_groups[0]['lr']
-            status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc, lr,
-                        dictionary_path=dictionary_path)
+        model.train()
+        cumulative_loss, correct, total = 0.0, 0, 0
 
-        optimizer.param_groups[0]['lr'] = learning_rate / pow(epoch * 10, 0.5)
-        print("Learning Rate : ", optimizer.param_groups[0]['lr'])
+        for idx, (inputs, labels) in enumerate(train_dataloader):
+            gradient_step += 1
+            if gradient_step % 512 == 0:
+                optimizer.param_groups[0]['lr'] = learning_rate / pow(gradient_step // 512, 0.5)
+
+            labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            optimizer.zero_grad()
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+            cumulative_loss += loss.item()
+            _, predicted = outputs.max(1)
+            total += labels.size(0)
+            correct += predicted.eq(labels.argmax(1)).sum().item()
+
+        train_loss = cumulative_loss / len(train_dataloader)
+        train_acc = correct / total
+        lr = optimizer.param_groups[0]['lr']
+
+        print("Gradient Step : %d(K) ; Train Loss : %f ; Train Acc : %.3f ; Learning Rate : %f" %
+              (gradient_step // 1000, train_loss, train_acc, lr))
+
+        if gradient_step // 100000 > gs_count:
+            gs_count = gradient_step // 100000
+
+            test_loss, test_acc = test(model, device, test_dataloader)
+
+            curr_time = datetime.now()
+            time = (curr_time - start_time).seconds / 60
+
+            status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr, time,
+                            dictionary_path=dictionary_path)
 
     '''
     if tSNE_Visualization:
@@ -217,7 +228,7 @@ def train_and_evaluate_model(model, device, trainloader, testloader, optimizer, 
     '''
 
     if save_model:
-        model_save(model, test_acc, epoch, checkpoint_path=checkpoint_path)
+        model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
 
     return
 
@@ -239,8 +250,8 @@ if __name__ == '__main__':
     # Main Program
     for test_number in TEST_NUMBERS:
         # Define the roots and paths
-        directory = f"assets/{DATASET}/N=%d-3d/TEST-%d/epoch=%d-noise-%d-model-%d" \
-                    % (N_SAMPLES, TEST_GROUP, N_EPOCHS, label_noise_ratio * 100, test_number)
+        directory = f"assets/{DATASET}/N=%d-3d/TEST-%d/GS=500K-noise-%d-model-%d" \
+                    % (N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
 
         dataset_path = os.path.join(directory, 'dataset')
         dictionary_path = os.path.join(directory, "dictionary.csv")
@@ -259,8 +270,8 @@ if __name__ == '__main__':
         '''
 
         # Initialize Status Dictionary
-        dictionary = {'Hidden Neurons': 0, 'Epoch': 0, 'Parameters': 0, 'Train Loss': 0,
-                      'Train Accuracy': 0, 'Test Loss': 0, 'Test Accuracy': 0, 'Learning Rate':0}
+        dictionary = {'Hidden Neurons': 0, 'Gradient Steps': 0, 'Parameters': 0, 'Train Loss': 0,
+                      'Train Accuracy': 0, 'Test Loss': 0, 'Test Accuracy': 0, 'Learning Rate': 0, 'Time Cost': 0}
 
         with open(dictionary_path, "a", newline="") as fp:
             writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
