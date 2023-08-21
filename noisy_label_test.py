@@ -21,13 +21,14 @@ if DATASET == 'MNIST':
 elif DATASET == 'CIFAR-10':
     hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
-N_EPOCHS = 100
+#N_EPOCHS = 1300
+GRADIENT_STEP = 500000
 N_SAMPLES = 50000
 BATCH_SIZE = 64
 
-TEST_GROUP = 2
+TEST_GROUP = 0
 TEST_NUMBERS = [0]
-label_noise_ratio = 0.2
+label_noise_ratio = 0.0
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -51,7 +52,7 @@ def get_train_losses(dictionary_path):
         train_losses = []
 
         for row in reader:
-            if int(row['Epoch']) == N_EPOCHS:
+            if int(row['Gradient Steps']) >= GRADIENT_STEP:
                 train_losses.append(float(row['Train Loss']))
 
         return train_losses
@@ -62,7 +63,7 @@ def get_test_losses(dictionary_path):
         test_losses = []
 
         for row in reader:
-            if int(row['Epoch']) == N_EPOCHS:
+            if int(row['Gradient Steps']) >= GRADIENT_STEP:
                 test_losses.append(float(row['Test Loss']))
 
         return test_losses
@@ -73,7 +74,7 @@ def get_test_accuracy(dictionary_path):
         test_accuracy = []
 
         for row in reader:
-            if int(row['Epoch']) == N_EPOCHS:
+            if int(row['Gradient Steps']) >= GRADIENT_STEP:
                 test_accuracy.append(float(row['Test Accuracy']))
 
         return test_accuracy
@@ -84,7 +85,7 @@ def get_train_accuracy(dictionary_path):
         train_accuracy = []
 
         for row in reader:
-            if int(row['Epoch']) == N_EPOCHS:
+            if int(row['Gradient Steps']) >= GRADIENT_STEP:
                 train_accuracy.append(float(row['Train Accuracy']))
 
         return train_accuracy
@@ -95,7 +96,7 @@ def get_parameters(dictionary_path):
         parameters = []
 
         for row in reader:
-            if int(row['Epoch']) == N_EPOCHS:
+            if int(row['Gradient Steps']) >= GRADIENT_STEP:
                 parameters.append(int(row['Parameters']) // 1000)
 
         return parameters
@@ -118,7 +119,7 @@ def load_model(checkpoint_path, hidden_unit):
     elif DATASET == 'CIFAR-10':
         model = models.FiveLayerCNN(hidden_unit)
 
-    checkpoint = torch.load(os.path.join(checkpoint_path, 'Simple_FC_%d.pth' % hidden_unit))
+    checkpoint = torch.load(os.path.join(checkpoint_path, 'Model_State_Dict_%d.pth' % hidden_unit))
     model.load_state_dict(checkpoint['net'])
 
     return model
@@ -222,8 +223,8 @@ def knn_prediction_test():
     #clean_train_accuracy, noisy_train_accuracy = [], []
 
     for i, test_number in enumerate(TEST_NUMBERS):
-        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/epoch=%d-noise-%d-model-%d" % (
-        N_SAMPLES, TEST_GROUP, N_EPOCHS, label_noise_ratio * 100, test_number)
+        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=500K-noise-%d-model-%d" % (
+        N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
         dataset_path = os.path.join(directory, 'dataset')
 
         clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
@@ -287,8 +288,8 @@ def decision_boundary_test():
     decision_boundary_distance = []
 
     for i, test_number in enumerate(TEST_NUMBERS):
-        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/epoch=%d-noise-%d-model-%d" % (
-            N_SAMPLES, TEST_GROUP, N_EPOCHS, label_noise_ratio * 100, test_number)
+        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=500K-noise-%d-model-%d" % (
+            N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
         dataset_path = os.path.join(directory, 'dataset')
         clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
             get_clean_noisy_dataloader(dataset_path)
@@ -350,8 +351,8 @@ if __name__ == '__main__':
     train_accuracy, test_accuracy, train_losses, test_losses = [], [], [], []
 
     for i, test_number in enumerate(TEST_NUMBERS):
-        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/epoch=%d-noise-%d-model-%d" % (
-            N_SAMPLES, TEST_GROUP, N_EPOCHS, label_noise_ratio * 100, test_number)
+        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=500K-noise-%d-model-%d" % (
+            N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
 
         # Get Parameters and dataset Losses
         dictionary_path = os.path.join(directory, "dictionary.csv")
