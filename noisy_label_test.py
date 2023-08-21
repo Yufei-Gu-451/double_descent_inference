@@ -6,7 +6,7 @@ import numpy as np
 import csv
 import os
 
-import dd_exp
+import main
 import datasets
 import models
 
