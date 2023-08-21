@@ -1,7 +1,6 @@
 import torch
 from torch.utils.data import DataLoader
 from prefetch_generator import BackgroundGenerator
-# from sklearn.manifold import TSNE
 import csv
 import os
 
@@ -25,7 +24,7 @@ TEST_GROUP = 0
 TEST_NUMBERS = [0]
 label_noise_ratio = 0.0
 
-
+GRADIDENT_STEP = 100000
 BATCH_SIZE = 128
 learning_rate = 0.1
 save_model = True
@@ -52,6 +51,13 @@ def get_train_and_test_dataloader(dataset_path):
 
     return train_dataloader, test_dataloader
 
+def setup_seed(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+
 
 # ------------------------------------------------------------------------------------------
 
@@ -75,68 +81,6 @@ def get_model(hidden_unit, device):
 # ------------------------------------------------------------------------------------------
 
 
-
-# Model testing
-def test(model, device, test_dataloader):
-    model.eval()
-    cumulative_loss, correct, total = 0.0, 0, 0
-
-    with torch.no_grad():
-        for idx, (inputs, labels) in enumerate(test_dataloader):
-            labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-
-            outputs = model(inputs)
-            loss = criterion(outputs, labels)
-
-            cumulative_loss += loss.item()
-            _, predicted = outputs.max(1)
-            total += labels.size(0)
-            correct += predicted.eq(labels.argmax(1)).sum().item()
-
-    test_loss = cumulative_loss / len(test_dataloader)
-    test_acc = correct/total
-
-    return test_loss, test_acc
-
-
-# ------------------------------------------------------------------------------------------
-
-
-'''
-def model_t_sne(model, trainloader, hidden_unit):
-    model.eval()
-
-    hidden_features, predicts = [], []
-
-    with torch.no_grad():
-        for idx, (inputs, labels) in enumerate(trainloader):
-            inputs = inputs.to(device)
-
-            hidden_feature = model(inputs, path='half1')
-            outputs = model(hidden_feature, path='half2')
-
-            for hf in hidden_feature:
-                hidden_features.append(hf.cpu().detach().numpy())
-
-            for output in outputs:
-                predict = output.cpu().detach().numpy().argmax()
-                predicts.append(predict)
-
-    hidden_features = np.array(hidden_features)
-    tsne = TSNE(n_components=2, random_state=42)
-    X_tsne = tsne.fit_transform(hidden_features)
-
-    plt.figure(figsize=(30, 20))
-    plt.scatter(X_tsne[:, 0], X_tsne[:, 1], c=predicts, cmap=plt.cm.get_cmap("jet", 10))
-    plt.colorbar(ticks=range(10))
-    plt.title('t-SNE Hidden Features Visualization (N = %d)' % hidden_unit)
-    plt.xlabel('t-SNE Dimension 1')
-    plt.ylabel('t-SNE Dimension 2')
-    plt.savefig(os.path.join(tsne_path, 't-SNE_Hidden_Features_%d.jpg' % hidden_unit))
-'''
-
 def model_save(model, gradient_step, test_accuracy, checkpoint_path):
     state = {
         'net': model.state_dict(),
@@ -146,7 +90,6 @@ def model_save(model, gradient_step, test_accuracy, checkpoint_path):
 
     torch.save(state, os.path.join(checkpoint_path, 'Model_State_Dict_%d.pth' % hidden_unit))
     print("Torch saved successfully!\n")
-
 
 def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr, time,
                 dictionary_path):
@@ -158,7 +101,6 @@ def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc
                   'Train Loss': train_loss, 'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc,
                   'Learning Rate': lr, 'Time Cost': time}
 
-
     with open(dictionary_path, "a", newline="") as fp:
         # Create a writer object
         writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
@@ -168,11 +110,12 @@ def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc
         print('Done writing to a csv file\n')
 
 
+# ------------------------------------------------------------------------------------------
+
+
 # Train and Evalute the model
 def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, optimizer, criterion, dictionary_path, checkpoint_path):
     start_time = datetime.now()
-
-    train_loss, train_acc, test_loss, test_acc, epoch = 0.0, 0.0, 0.0, 0.0, 0
 
     parameters = sum(p.numel() for p in model.parameters())
     n_hidden_units = model.n_hidden_units
@@ -180,7 +123,7 @@ def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, o
     gradient_step, gs_count = 0, 0
 
     while gradient_step <= 500000:
-
+        # Model Training
         model.train()
         cumulative_loss, correct, total = 0.0, 0, 0
 
@@ -211,26 +154,43 @@ def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, o
         print("Gradient Step : %d(K) ; Train Loss : %f ; Train Acc : %.3f ; Learning Rate : %f" %
               (gradient_step // 1000, train_loss, train_acc, lr))
 
+        # Test Model after every 100K Gradient Steps
         if gradient_step // 100000 > gs_count:
-            gs_count = gradient_step // 100000
+            # Test Model
+            model.eval()
+            cumulative_loss, correct, total = 0.0, 0, 0
 
-            test_loss, test_acc = test(model, device, test_dataloader)
+            with torch.no_grad():
+                for idx, (inputs, labels) in enumerate(test_dataloader):
+                    labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
+                    inputs = inputs.to(device)
+                    labels = labels.to(device)
+
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
+
+                    cumulative_loss += loss.item()
+                    _, predicted = outputs.max(1)
+                    total += labels.size(0)
+                    correct += predicted.eq(labels.argmax(1)).sum().item()
+
+            test_loss = cumulative_loss / len(test_dataloader)
+            test_acc = correct / total
 
             curr_time = datetime.now()
             time = (curr_time - start_time).seconds / 60
+            gs_count = gradient_step // 100000
 
             status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr, time,
                             dictionary_path=dictionary_path)
-
-    '''
-    if tSNE_Visualization:
-        model_t_sne(model, trainloader, hidden_unit)
-    '''
 
     if save_model:
         model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
 
     return
+
+
+# ------------------------------------------------------------------------------------------
 
 
 if __name__ == '__main__':
@@ -240,24 +200,24 @@ if __name__ == '__main__':
     print('Using device : ', torch.cuda.get_device_name(0))
     print(torch.cuda.get_device_capability(0))
 
+    setup_seed(20)
+
     # Initialization of hidden units
     if DATASET == 'MNIST':
         hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
                         120, 150, 200, 400, 600, 800, 1000]
     elif DATASET == 'CIFAR-10':
-        #hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
-        hidden_units = [28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+        hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
     # Main Program
     for test_number in TEST_NUMBERS:
         # Define the roots and paths
-        directory = f"assets/{DATASET}/N=%d-3d/TEST-%d/GS=500K-noise-%d-model-%d" \
-                    % (N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
+        directory = f"assets/{DATASET}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d" \
+                    % (N_SAMPLES, TEST_GROUP, GRADIDENT_STEP // 1000, label_noise_ratio * 100, test_number)
 
-        dataset_path = os.path.join(directory, 'dataset')
         dictionary_path = os.path.join(directory, "dictionary.csv")
+        dataset_path = os.path.join(directory, 'dataset')
         checkpoint_path = os.path.join(directory, "ckpt")
-        tsne_path = os.path.join(directory, "t-SNE")
 
         if not os.path.isdir(directory):
             os.mkdir(directory)
@@ -265,10 +225,6 @@ if __name__ == '__main__':
             os.mkdir(dataset_path)
         if save_model and not os.path.isdir(checkpoint_path):
             os.mkdir(checkpoint_path)
-        '''
-        if tSNE_Visualization and not os.path.isdir(tsne_path):
-            os.mkdir(tsne_path)
-        '''
 
         # Initialize Status Dictionary
         dictionary = {'Hidden Neurons': 0, 'Gradient Steps': 0, 'Parameters': 0, 'Train Loss': 0,

@@ -66,7 +66,11 @@ def get_test_dataset(DATASET):
 
 
 def save_and_create_training_set(DATASET, sample_size, label_noise_ratio, dataset_path):
-    train_dataset = torch.utils.data.Subset(get_train_dataset(DATASET), indices=np.arange(sample_size))
+    train_dataset = get_train_dataset(DATASET)
+
+    if sample_size < 50000:
+        train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
+
     torch.save(list(train_dataset), os.path.join(dataset_path, 'subset-clean.pth'))
 
     if label_noise_ratio == 0:
