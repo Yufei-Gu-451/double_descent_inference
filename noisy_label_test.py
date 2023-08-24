@@ -19,12 +19,12 @@ if DATASET == 'MNIST':
     hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90,
                     100, 120, 150, 200, 400, 600, 800, 1000]
 elif DATASET == 'CIFAR-10':
-    hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+    hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
 #N_EPOCHS = 1300
-GRADIENT_STEP = 500000
+GRADIENT_STEP = 5000
 N_SAMPLES = 50000
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 
 TEST_GROUP = 0
 TEST_NUMBERS = [0]
@@ -32,19 +32,6 @@ label_noise_ratio = 0.0
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-
-def decomposition_by_SVD(mat, k):
-    # Singular Value Decomposition (SVD)
-    U, S, V = np.linalg.svd(mat)
-
-    # Choose top k important singular values
-    Uk = U[:, :k]
-    Sk = np.diag(S[0:k])
-    Vk = V[:k, :]
-
-    # recover the image
-    imgMat_new = Uk @ Sk @ Vk
-    return Uk
 
 def get_train_losses(dictionary_path):
     with open(dictionary_path, "r", newline="") as infile:
@@ -145,11 +132,11 @@ def get_clean_noisy_dataloader(dataset_path):
     noisy_label_dataset_c = datasets.ListDataset(noisy_label_list_c)
     noisy_label_dataset_n = datasets.ListDataset(noisy_label_list_n)
 
-    clean_label_dataloader = dd_exp.DataLoaderX(clean_label_dataset, batch_size=BATCH_SIZE, shuffle=False,
+    clean_label_dataloader = main.DataLoaderX(clean_label_dataset, batch_size=BATCH_SIZE, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader_c = dd_exp.DataLoaderX(noisy_label_dataset_c, batch_size=BATCH_SIZE, shuffle=False,
+    noisy_label_dataloader_c = main.DataLoaderX(noisy_label_dataset_c, batch_size=BATCH_SIZE, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader_n = dd_exp.DataLoaderX(noisy_label_dataset_n, batch_size=BATCH_SIZE, shuffle=False,
+    noisy_label_dataloader_n = main.DataLoaderX(noisy_label_dataset_n, batch_size=BATCH_SIZE, shuffle=False,
                                                   num_workers=0, pin_memory=True)
 
     return clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, len(noisy_label_list_c)
@@ -351,8 +338,8 @@ if __name__ == '__main__':
     train_accuracy, test_accuracy, train_losses, test_losses = [], [], [], []
 
     for i, test_number in enumerate(TEST_NUMBERS):
-        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=500K-noise-%d-model-%d" % (
-            N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
+        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-model-%d" % (
+            N_SAMPLES, TEST_GROUP, GRADIENT_STEP // 1000, label_noise_ratio * 100, test_number)
 
         # Get Parameters and dataset Losses
         dictionary_path = os.path.join(directory, "dictionary.csv")
@@ -391,9 +378,10 @@ if __name__ == '__main__':
         ax3.set_xscale('function', functions=scale_function)
         ax3.set_xticks([1, 5, 15, 40, 100, 250, 500, 1000])
 
+
     # Subplot 1
-    ln1 = ax1.plot(hidden_units, train_accuracy, marker='o', label='Train Accuracy', color='red')
-    ln2 = ax1.plot(hidden_units, test_accuracy, marker='o', label='Test Accuracy', color='blue')
+    ln1 = ax1.plot(hidden_units, train_accuracy, label='Train Accuracy', color='red')
+    ln2 = ax1.plot(hidden_units, test_accuracy, label='Test Accuracy', color='blue')
     #ax1.set_xlabel('Number of Hidden Neurons (N)')
     ax1.set_ylabel('Accuracy (100%)')
     ax1.set_ylim([0, 1.05])
@@ -418,8 +406,8 @@ if __name__ == '__main__':
     ax1.grid()
 
     # Subplot 2
-    ln6 = ax3.plot(hidden_units, train_losses, marker='o', label='Train Losses', color='red')
-    ln7 = ax3.plot(hidden_units, test_losses, marker='o', label='Test Losses', color='blue')
+    ln6 = ax3.plot(hidden_units, train_losses, label='Train Losses', color='red')
+    ln7 = ax3.plot(hidden_units, test_losses, label='Test Losses', color='blue')
     ax3.set_xlabel('Number of Hidden Neurons (N)')
     ax3.set_ylabel('Cross Entropy Loss')
 
@@ -430,4 +418,5 @@ if __name__ == '__main__':
 
     # Plot Title and Save
     plt.title(f'Experiment Results on {DATASET} (N=%d, p=%d%%)' % (N_SAMPLES, label_noise_ratio * 100))
-    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/Experiment Result.png' % (N_SAMPLES, TEST_GROUP))
+    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-ER.png' %
+                (N_SAMPLES, TEST_GROUP, GRADIENT_STEP // 1000, label_noise_ratio * 100))

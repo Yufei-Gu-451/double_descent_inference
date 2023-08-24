@@ -4,10 +4,12 @@ from prefetch_generator import BackgroundGenerator
 import csv
 import os
 
+from datetime import datetime
+import numpy as np
+import random
+
 import models
 import datasets
-
-from datetime import datetime
 
 
 # ------------------------------------------------------------------------------------------
@@ -20,11 +22,11 @@ from datetime import datetime
 DATASET = 'CIFAR-10'
 N_SAMPLES = 50000
 
-TEST_GROUP = 0
+TEST_GROUP = 2
 TEST_NUMBERS = [0]
-label_noise_ratio = 0.0
+label_noise_ratio = 0.2
 
-GRADIDENT_STEP = 100000
+GRADIDENT_STEP = 100 * 1000
 BATCH_SIZE = 128
 learning_rate = 0.1
 save_model = True
@@ -122,7 +124,7 @@ def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, o
 
     gradient_step, gs_count = 0, 0
 
-    while gradient_step <= 500000:
+    while gradient_step <= GRADIDENT_STEP:
         # Model Training
         model.train()
         cumulative_loss, correct, total = 0.0, 0, 0
@@ -207,7 +209,8 @@ if __name__ == '__main__':
         hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
                         120, 150, 200, 400, 600, 800, 1000]
     elif DATASET == 'CIFAR-10':
-        hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+        #hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+        hidden_units = [14, 16, 18]
 
     # Main Program
     for test_number in TEST_NUMBERS:

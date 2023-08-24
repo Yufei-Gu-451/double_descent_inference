@@ -66,31 +66,39 @@ def get_test_dataset(DATASET):
 
 
 def save_and_create_training_set(DATASET, sample_size, label_noise_ratio, dataset_path):
-    train_dataset = get_train_dataset(DATASET)
+    clean_dataset_path = os.path.join(dataset_path, 'subset-clean.pth')
 
-    if sample_size < 50000:
+    if not os.path.exists(clean_dataset_path):
+        print('Saving Clean Dataset...')
+        train_dataset = get_train_dataset(DATASET)
         train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
 
-    torch.save(list(train_dataset), os.path.join(dataset_path, 'subset-clean.pth'))
+        torch.save(list(train_dataset), clean_dataset_path)
 
     if label_noise_ratio == 0:
-        return torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
+        print('Loading Clean Dataset...')
+        return torch.load(clean_dataset_path)
 
     elif label_noise_ratio > 0:
-        train_dataset_2_list = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
-        train_dataset_2 = ListDataset(train_dataset_2_list)
+        noisy_dataset_path = os.path.join(dataset_path, 'subset-noise-%d%%.pth' % (100 * label_noise_ratio))
 
-        label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
-        num_noisy_samples = int(label_noise_ratio * len(train_dataset_2))
+        if not os.path.exists(noisy_dataset_path):
+            print('Generating Noisy Dataset...')
+            train_dataset_2_list = torch.load(clean_dataset_path)
+            train_dataset_2 = ListDataset(train_dataset_2_list)
 
-        noisy_indices = np.random.choice(len(train_dataset_2), num_noisy_samples, replace=False)
-        for idx in noisy_indices:
-            train_dataset_2.targets[idx] = label_noise_transform(train_dataset_2.targets[idx])
+            label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
+            num_noisy_samples = int(label_noise_ratio * len(train_dataset_2))
 
-        print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
+            noisy_indices = np.random.choice(len(train_dataset_2), num_noisy_samples, replace=False)
+            for idx in noisy_indices:
+                train_dataset_2.targets[idx] = label_noise_transform(train_dataset_2.targets[idx])
 
-        torch.save(train_dataset_2.get_list(),
-                   os.path.join(dataset_path, 'subset-noise-%d%%.pth' % (100 * label_noise_ratio)))
+            print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
 
-        return torch.load(os.path.join(dataset_path, 'subset-noise-%d%%.pth' % (100 * label_noise_ratio)))
+            torch.save(train_dataset_2.get_list(),
+                       os.path.join(dataset_path, 'subset-noise-%d%%.pth' % (100 * label_noise_ratio)))
+
+        print('Loading Noisy Dataset...')
+        return torch.load(noisy_dataset_path)
 
