@@ -10,25 +10,25 @@ import main
 import datasets
 import models
 
-
+MODEL = 'CNN'
 DATASET = 'CIFAR-10'
 
+TEST_GROUP = 2
+TEST_NUMBERS = [0]
+label_noise_ratio = 0.2
+
 if DATASET == 'MNIST':
-    #hidden_units = [1, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
-    #                120, 150, 200, 400, 600, 800, 1000]
     hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90,
                     100, 120, 150, 200, 400, 600, 800, 1000]
+    N_SAMPLES = 4000
 elif DATASET == 'CIFAR-10':
     hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+    N_SAMPLES = 50000
+else:
+    raise NotImplementedError
 
-#N_EPOCHS = 1300
-GRADIENT_STEP = 5000
-N_SAMPLES = 50000
+GRADIENT_STEP = 100 * 1000
 BATCH_SIZE = 128
-
-TEST_GROUP = 0
-TEST_NUMBERS = [0]
-label_noise_ratio = 0.0
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -90,10 +90,13 @@ def get_parameters(dictionary_path):
 
 def load_dataset(dataset_path):
     org_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
+
     if label_noise_ratio > 0:
         noisy_train_dataset = torch.load(os.path.join(dataset_path, f'subset-noise-{int(label_noise_ratio * 100)}%.pth'))
     elif label_noise_ratio == 0:
         noisy_train_dataset = torch.load(os.path.join(dataset_path, 'subset-clean.pth'))
+    else:
+        raise NotImplementedError
 
     assert (len(org_train_dataset) == len(noisy_train_dataset))
 
@@ -105,6 +108,10 @@ def load_model(checkpoint_path, hidden_unit):
         model = models.Simple_FC(hidden_unit)
     elif DATASET == 'CIFAR-10':
         model = models.FiveLayerCNN(hidden_unit)
+    elif DATASET == 'ResNet18':
+        model = models.ResNet18(hidden_unit)
+    else:
+        raise NotImplementedError
 
     checkpoint = torch.load(os.path.join(checkpoint_path, 'Model_State_Dict_%d.pth' % hidden_unit))
     model.load_state_dict(checkpoint['net'])
@@ -204,79 +211,39 @@ def test(model, test_dataloader):
     return test_loss, test_acc
 
 
-def knn_prediction_test():
+def knn_prediction_test(directory):
     print('\nKNN Prediction Test\n')
-    knn_1_accuracy_list, knn_5_accuracy_list, knn_10_accuracy_list = [], [], []
-    #clean_train_accuracy, noisy_train_accuracy = [], []
+    dataset_path = os.path.join(directory, 'dataset')
+    clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
+        get_clean_noisy_dataloader(dataset_path)
 
-    for i, test_number in enumerate(TEST_NUMBERS):
-        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=500K-noise-%d-model-%d" % (
-        N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
-        dataset_path = os.path.join(directory, 'dataset')
+    knn_5_accuracy_list = []
 
-        clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
-            get_clean_noisy_dataloader(dataset_path)
+    for n in hidden_units:
+        # Initialize model with pretrained weights
+        checkpoint_path = os.path.join(directory, "ckpt")
+        model = load_model(checkpoint_path, n)
+        model.eval()
 
-        knn_1_accuracy_list.append([])
-        knn_5_accuracy_list.append([])
-        knn_10_accuracy_list.append([])
-        #clean_train_accuracy.append([])
-        #noisy_train_accuracy.append([])
+        # Obtain the hidden features of the clean data set
+        data, hidden_features, predicts, labels = get_hidden_features(model, clean_label_dataloader)
+        data_2, hidden_features_2, predicts_2, labels_2 = get_hidden_features(model, noisy_label_dataloader_c)
 
-        for n in hidden_units:
-            # Initialize model with pretrained weights
-            checkpoint_path = os.path.join(directory, "ckpt")
-            model = load_model(checkpoint_path, n)
-            model.eval()
+        knn_5 = KNeighborsClassifier(n_neighbors=5, metric='cosine')
+        knn_5.fit(hidden_features, labels)
 
-            # Test the clean training data
-            # clean_train_loss, clean_train_acc = test(model, clean_label_dataloader)
-            # clean_train_accuracy[-1].append(clean_train_acc)
-            # noisy_train_loss, noisy_train_acc = test(model, noisy_label_dataloader_n)
-            # noisy_train_accuracy[-1].append(noisy_train_acc)
+        correct = sum(knn_5.predict(hidden_features_2) == labels_2)
+        knn_5_accuracy_list.append(correct / n_noisy_data)
+        print('Test No = %d ; Hidden Units = %d ; Correct = %d ; k = 5' % (test_number, n, correct))
 
-            # Obtain the hidden features of the clean data set
-            data, hidden_features, predicts, labels = get_hidden_features(model, clean_label_dataloader)
-            data_2, hidden_features_2, predicts_2, labels_2 = get_hidden_features(model, noisy_label_dataloader_c)
+    return knn_5_accuracy_list
 
-            knn_1 = KNeighborsClassifier(n_neighbors=1, metric='cosine')
-            knn_1.fit(hidden_features, labels)
 
-            correct = sum(knn_1.predict(hidden_features_2) == labels_2)
-            knn_1_accuracy_list[-1].append(correct / n_noisy_data)
-            print('Test No = %d ; Hidden Units = %d ; Correct = %d ; k = 1' % (test_number, n, correct))
-
-            knn_5 = KNeighborsClassifier(n_neighbors=5, metric='cosine')
-            knn_5.fit(hidden_features, labels)
-
-            correct = sum(knn_5.predict(hidden_features_2) == labels_2)
-            knn_5_accuracy_list[-1].append(correct / n_noisy_data)
-            print('Test No = %d ; Hidden Units = %d ; Correct = %d ; k = 5' % (test_number, n, correct))
-
-            knn_10 = KNeighborsClassifier(n_neighbors=10, metric='cosine')
-            knn_10.fit(hidden_features, labels)
-
-            correct = sum(knn_10.predict(hidden_features_2) == labels_2)
-            knn_10_accuracy_list[-1].append(correct / n_noisy_data)
-            print('Test No = %d ; Hidden Units = %d ; Correct = %d ; k = 10' % (test_number, n, correct))
-
-    knn_1_accuracy_list = np.mean(np.array(knn_1_accuracy_list), axis=0)
-    knn_5_accuracy_list = np.mean(np.array(knn_5_accuracy_list), axis=0)
-    knn_10_accuracy_list = np.mean(np.array(knn_10_accuracy_list), axis=0)
-
-    with open(f"assets/{DATASET}/N=%d-3D/TEST-%d/knn_accuracy_list.csv" % (N_SAMPLES, TEST_GROUP), 'w') as f:
-        #f.write('knn_1_accuracy_list,knn_5_accuracy_list,knn_10_accuracy_list\n')
-
-        for i in range(len(knn_1_accuracy_list)):
-            f.write(f'%lf,%lf,%lf\n' % (knn_1_accuracy_list[i], knn_5_accuracy_list[i], knn_10_accuracy_list[i]))
-
-def decision_boundary_test():
+def decision_boundary_test(directory):
     print('\nDecision Boundary Test\n')
     decision_boundary_distance = []
 
-    for i, test_number in enumerate(TEST_NUMBERS):
-        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=500K-noise-%d-model-%d" % (
-            N_SAMPLES, TEST_GROUP, label_noise_ratio * 100, test_number)
+    for test_number in TEST_NUMBERS:
         dataset_path = os.path.join(directory, 'dataset')
         clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
             get_clean_noisy_dataloader(dataset_path)
@@ -310,17 +277,14 @@ def decision_boundary_test():
 
                         if predicted.eq(labels_3[noise_idx]):
                             distance = distance + vector * lr
-                            #print(True, np.linalg.norm(distance), np.linalg.norm(vector))
                         else:
                             lr = lr / 2
                             distance = distance - vector * lr
-                            #print(False, np.linalg.norm(distance), np.linalg.norm(vector))
 
                     if np.linalg.norm(vector) == 0:
                         break
                     n = np.linalg.norm(distance) / np.linalg.norm(vector)
                     db_distance_list.append(n)
-                    #db_distance_list.append(np.linalg.norm(distance))
 
             decision_boundary_distance[-1].append(np.mean(np.array(db_distance_list)))
             print(i, decision_boundary_distance[-1])
@@ -336,9 +300,10 @@ def decision_boundary_test():
 
 if __name__ == '__main__':
     train_accuracy, test_accuracy, train_losses, test_losses = [], [], [], []
+    knn_5_accuracy_list = []
 
     for i, test_number in enumerate(TEST_NUMBERS):
-        directory = f"assets/{DATASET}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-model-%d" % (
+        directory = f"assets/{DATASET}-{MODEL}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-model-%d" % (
             N_SAMPLES, TEST_GROUP, GRADIENT_STEP // 1000, label_noise_ratio * 100, test_number)
 
         # Get Parameters and dataset Losses
@@ -348,24 +313,18 @@ if __name__ == '__main__':
         train_losses.append(get_train_losses(dictionary_path))
         test_losses.append(get_test_losses(dictionary_path))
 
+        # Run KNN Test
+        if label_noise_ratio > 0:
+            knn_5_accuracy_list.append(knn_prediction_test(directory))
+
     train_accuracy = np.mean(np.array(train_accuracy), axis=0)
     test_accuracy = np.mean(np.array(test_accuracy), axis=0)
     train_losses = np.mean(np.array(train_losses), axis=0)
     test_losses = np.mean(np.array(test_losses), axis=0)
 
     if label_noise_ratio > 0:
-        knn_prediction_test()
+        knn_5_accuracy_list = np.mean(np.array(knn_5_accuracy_list), axis=0)
 
-        knn_1_accuracy_list, knn_5_accuracy_list, knn_10_accuracy_list = [], [], []
-
-        with open(f"assets/{DATASET}/N=%d-3D/TEST-%d/knn_accuracy_list.csv" % (N_SAMPLES, TEST_GROUP), 'r') as f:
-            csvFile = csv.reader(f)
-            for lines in csvFile:
-                knn_1_accuracy_list.append(float(lines[0]))
-                knn_5_accuracy_list.append(float(lines[1]))
-                knn_10_accuracy_list.append(float(lines[2]))
-
-    # decision_boundary_test()
 
     # Plot the Diagram
     scale_function = (lambda x: x ** (1 / 4), lambda x: x ** 4)
@@ -377,29 +336,38 @@ if __name__ == '__main__':
         ax1.set_xticks([1, 5, 15, 40, 100, 250, 500, 1000])
         ax3.set_xscale('function', functions=scale_function)
         ax3.set_xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+    elif DATASET == 'CIFAR-10':
+        ax1.set_xticks([1, 10, 20, 30, 40, 50, 60, 64])
+        ax3.set_xticks([1, 10, 20, 30, 40, 50, 60, 64])
+    else:
+        raise NotImplementedError
 
+    if MODEL == 'SimpleFC':
+        ax1.set_xlabel('Number of Hidden Neurons (N)')
+        ax3.set_xlabel('Number of Hidden Neurons (N)')
+    elif MODEL == 'CNN' or MODEL == 'ResNet18':
+        ax1.set_xlabel('Convolutional Layer Width (K)')
+        ax3.set_xlabel('Convolutional Layer Width (K)')
+    else:
+        raise NotImplementedError
 
     # Subplot 1
     ln1 = ax1.plot(hidden_units, train_accuracy, label='Train Accuracy', color='red')
     ln2 = ax1.plot(hidden_units, test_accuracy, label='Test Accuracy', color='blue')
-    #ax1.set_xlabel('Number of Hidden Neurons (N)')
     ax1.set_ylabel('Accuracy (100%)')
     ax1.set_ylim([0, 1.05])
 
     if label_noise_ratio > 0:
         ax2 = ax1.twinx()
-        ln3 = ax2.plot(hidden_units, knn_1_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 1)',
-                       color='orange')
-        ln4 = ax2.plot(hidden_units, knn_5_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 5)',
-                       color='green')
-        ln5 = ax2.plot(hidden_units, knn_10_accuracy_list, marker='o', label='KNN Prediction Accuracy (k = 10)',
-                       color='cyan')
+        ln3 = ax2.plot(hidden_units, knn_5_accuracy_list, label='KNN Prediction Accuracy (k = 5)', color='cyan')
         ax2.set_ylabel('KNN Label Accuracy (100%)')
         ax2.set_ylim([0, 1.05])
 
-        lns = ln1 + ln2 + ln3 + ln4 + ln5
+        lns = ln1 + ln2 + ln3
     elif label_noise_ratio == 0:
         lns = ln1 + ln2
+    else:
+        raise NotImplementedError
 
     labs = [l.get_label() for l in lns]
     ax1.legend(lns, labs, loc=0)
@@ -408,7 +376,6 @@ if __name__ == '__main__':
     # Subplot 2
     ln6 = ax3.plot(hidden_units, train_losses, label='Train Losses', color='red')
     ln7 = ax3.plot(hidden_units, test_losses, label='Test Losses', color='blue')
-    ax3.set_xlabel('Number of Hidden Neurons (N)')
     ax3.set_ylabel('Cross Entropy Loss')
 
     lns = ln6 + ln7
@@ -418,5 +385,5 @@ if __name__ == '__main__':
 
     # Plot Title and Save
     plt.title(f'Experiment Results on {DATASET} (N=%d, p=%d%%)' % (N_SAMPLES, label_noise_ratio * 100))
-    plt.savefig(f'assets/{DATASET}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-ER.png' %
+    plt.savefig(f'assets/{DATASET}-{MODEL}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-ER.png' %
                 (N_SAMPLES, TEST_GROUP, GRADIENT_STEP // 1000, label_noise_ratio * 100))

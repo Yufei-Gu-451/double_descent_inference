@@ -8,20 +8,28 @@ import os
 #DATASET = 'MNIST'
 #N_SAMPLES = 4000
 
-DATASET = 'CIFAR-10'
-N_SAMPLES = 50000
+MODEL = 'SimpleFC'
+DATASET = 'MNIST'
 
-TEST_GROUP = 2
-TEST_NUMBER = 0
+TEST_GROUP = 6
+TEST_NUMBER = 4
 label_noise_ratio = 0.2
 
-GRADIDENT_STEP = 100000
-BATCH_SIZE = 128
-learning_rate = 0.1
-save_model = True
+if DATASET == 'MNIST':
+    hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90,
+                    100, 120, 150, 200, 400, 600, 800, 1000]
+    N_SAMPLES = 4000
+elif DATASET == 'CIFAR-10':
+    hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+    N_SAMPLES = 50000
+else:
+    raise NotImplementedError
 
-directory = f"assets/{DATASET}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d" \
-                    % (N_SAMPLES, TEST_GROUP, GRADIDENT_STEP // 1000, label_noise_ratio * 100, TEST_NUMBER)
+GRADIENT_STEP = 100 * 1000
+BATCH_SIZE = 128
+
+directory = f"assets/{DATASET}-{MODEL}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d" \
+                    % (N_SAMPLES, TEST_GROUP, GRADIENT_STEP // 1000, label_noise_ratio * 100, TEST_NUMBER)
 
 dictionary_path = os.path.join(directory, "dictionary.csv")
 plots_path = os.path.join(directory, 'plots')

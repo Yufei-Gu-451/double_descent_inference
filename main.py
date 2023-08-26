@@ -20,16 +20,18 @@ import datasets
 #N_SAMPLES = 4000
 
 DATASET = 'CIFAR-10'
+MODEL = 'CNN'
 N_SAMPLES = 50000
 
-TEST_GROUP = 2
-TEST_NUMBERS = [0]
-label_noise_ratio = 0.2
+TEST_GROUP = 0
+TEST_NUMBERS = [2]
+label_noise_ratio = 0.0
 
 GRADIDENT_STEP = 100 * 1000
 BATCH_SIZE = 128
 learning_rate = 0.1
 save_model = True
+
 
 # ------------------------------------------------------------------------------------------
 
@@ -40,8 +42,13 @@ class DataLoaderX(DataLoader):
 
 # Return the train_dataloader and test_dataloader of MINST
 def get_train_and_test_dataloader(dataset_path):
-    train_dataset = datasets.save_and_create_training_set(DATASET, sample_size=N_SAMPLES,
-                        label_noise_ratio=label_noise_ratio, dataset_path=dataset_path)
+    if label_noise_ratio > 0:
+        train_dataset = datasets.save_and_create_training_set(DATASET, sample_size=N_SAMPLES,
+                label_noise_ratio=label_noise_ratio, dataset_path=dataset_path)
+    elif label_noise_ratio == 0:
+        train_dataset = datasets.get_train_dataset(DATASET=DATASET)
+    else:
+        raise NotImplementedError
 
     train_dataloader = DataLoaderX(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=0, pin_memory=True)
 
@@ -70,10 +77,12 @@ def get_model(hidden_unit, device):
         model = models.Simple_FC(hidden_unit)
     elif DATASET == 'CIFAR-10':
         model = models.FiveLayerCNN(hidden_unit)
+    elif DATASET == 'ResNet18':
+        model = models.ResNet18(hidden_unit)
 
     model = model.to(device)
 
-    print("\nModel with %d hidden neurons successfully generated;" % hidden_unit)
+    print(f"\n{MODEL} Model with %d hidden neurons successfully generated;" % hidden_unit)
 
     print('Number of parameters: %d' % sum(p.numel() for p in model.parameters()))
 
@@ -127,7 +136,7 @@ def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, o
     while gradient_step <= GRADIDENT_STEP:
         # Model Training
         model.train()
-        cumulative_loss, correct, total = 0.0, 0, 0
+        cumulative_loss, correct, total, idx = 0.0, 0, 0, 0
 
         for idx, (inputs, labels) in enumerate(train_dataloader):
             gradient_step += 1
@@ -149,18 +158,19 @@ def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, o
             total += labels.size(0)
             correct += predicted.eq(labels.argmax(1)).sum().item()
 
-        train_loss = cumulative_loss / len(train_dataloader)
+        train_loss = cumulative_loss / (idx + 1)
         train_acc = correct / total
+
         lr = optimizer.param_groups[0]['lr']
 
         print("Gradient Step : %d(K) ; Train Loss : %f ; Train Acc : %.3f ; Learning Rate : %f" %
               (gradient_step // 1000, train_loss, train_acc, lr))
 
-        # Test Model after every 100K Gradient Steps
-        if gradient_step // 100000 > gs_count:
+        # Test Model after every 10K Gradient Steps
+        if gradient_step // (10 * 1000) > gs_count:
             # Test Model
             model.eval()
-            cumulative_loss, correct, total = 0.0, 0, 0
+            cumulative_loss, correct, total, idx = 0.0, 0, 0, 0
 
             with torch.no_grad():
                 for idx, (inputs, labels) in enumerate(test_dataloader):
@@ -176,12 +186,12 @@ def train_and_evaluate_model(model, device, train_dataloader, test_dataloader, o
                     total += labels.size(0)
                     correct += predicted.eq(labels.argmax(1)).sum().item()
 
-            test_loss = cumulative_loss / len(test_dataloader)
+            test_loss = cumulative_loss / (idx + 1)
             test_acc = correct / total
 
             curr_time = datetime.now()
             time = (curr_time - start_time).seconds / 60
-            gs_count = gradient_step // 100000
+            gs_count = gradient_step // (10 * 1000)
 
             status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr, time,
                             dictionary_path=dictionary_path)
@@ -202,20 +212,22 @@ if __name__ == '__main__':
     print('Using device : ', torch.cuda.get_device_name(0))
     print(torch.cuda.get_device_capability(0))
 
-    setup_seed(20)
-
     # Initialization of hidden units
-    if DATASET == 'MNIST':
-        hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70, 80, 90, 100,
-                        120, 150, 200, 400, 600, 800, 1000]
-    elif DATASET == 'CIFAR-10':
-        #hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
-        hidden_units = [14, 16, 18]
+    if MODEL == 'SimpleFC':
+        hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
+                        80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
+    elif MODEL == 'CNN' or MODEL == 'ResNet18':
+        hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+    else:
+        raise NotImplementedError
 
     # Main Program
     for test_number in TEST_NUMBERS:
+        # Setup seed for reproduction
+        setup_seed(20 + test_number)
+
         # Define the roots and paths
-        directory = f"assets/{DATASET}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d" \
+        directory = f"assets/{DATASET}-{MODEL}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d" \
                     % (N_SAMPLES, TEST_GROUP, GRADIDENT_STEP // 1000, label_noise_ratio * 100, test_number)
 
         dictionary_path = os.path.join(directory, "dictionary.csv")
