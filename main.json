@@ -1,0 +1,25 @@
+{
+    "executor": "python main_arg.py",
+    "cuda": [1],
+    "concurrency": 1,
+    "configs": {
+        "==base==": [
+            "--dataset",            ["CIFAR-10"],
+            "--sample_size",        ["50000"],
+            "--noise_ratio",        ["0.0"],
+            "--model",              ["CNN"],
+
+            "--test_group",         ["0"],
+            "--test_number_start",  ["1"],
+            "--test_number_end",    ["1"]
+        ],
+        "==more==": [
+            [
+                "--hidden_units",   ["1"],
+                "--hidden_units",   ["2"],
+                "--hidden_units",   ["3"],
+                "--hidden_units",   ["4"]
+            ]
+        ]
+    }
+}

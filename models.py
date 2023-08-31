@@ -103,53 +103,48 @@ class FiveLayerCNN(nn.Module):
 
         super(FiveLayerCNN, self).__init__()
 
-        self.layer1 = nn.Sequential(
-            nn.Conv2d(3, k, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.BatchNorm2d(k),
-            nn.ReLU()
-        )
+        # Layer 0
+        self.conv1 = nn.Conv2d(3, k, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn1 = nn.BatchNorm2d(k)
+        self.relu1 = nn.ReLU()
 
-        self.layer2 = nn.Sequential(
-            nn.Conv2d(k, 2 * k, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.BatchNorm2d(2 * k),
-            nn.ReLU(),
-            nn.MaxPool2d(1)
-        )
+        # Layer 1
+        self.conv2 = nn.Conv2d(k, 2 * k, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn2 = nn.BatchNorm2d(2 * k)
+        self.relu2 = nn.ReLU()
+        self.pool1 = nn.MaxPool2d(1)
 
-        self.layer3 = nn.Sequential(
-            nn.Conv2d(2 * k, 4 * k, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.BatchNorm2d(4 * k),
-            nn.ReLU(),
-            nn.MaxPool2d(2)
-        )
+        # Layer 2
+        self.conv3 = nn.Conv2d(2 * k, 4 * k, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn3 = nn.BatchNorm2d(4 * k)
+        self.relu3 = nn.ReLU()
+        self.pool2 = nn.MaxPool2d(2)
 
-        self.layer4 = nn.Sequential(
-            nn.Conv2d(4 * k, 8 * k, kernel_size=3, stride=1, padding=1, bias=True),
-            nn.BatchNorm2d(8 * k),
-            nn.ReLU(),
-            nn.MaxPool2d(2)
-        )
+        # Layer 3
+        self.conv4 = nn.Conv2d(4 * k, 8 * k, kernel_size=3, stride=1, padding=1, bias=True)
+        self.bn4 = nn.BatchNorm2d(8 * k)
+        self.relu4 = nn.ReLU()
+        self.pool3 = nn.MaxPool2d(2)
 
-        self.layer5 = nn.Sequential(
-            nn.MaxPool2d(8),
-            Flatten(),
-            nn.Linear(8 * k, 10, bias=True)
-        )
+        # Layer 4
+        self.pool4 = nn.MaxPool2d(8)
+        self.flatten = Flatten()
+        self.fc = nn.Linear(8 * k, 10, bias=True)
 
     def forward(self, x, path='all'):
         if path == 'all':
-            x = self.layer1(x)
-            x = self.layer2(x)
-            x = self.layer3(x)
-            x = self.layer4(x)
-            x = self.layer5(x)
+            x = self.relu1(self.bn1(self.conv1(x)))
+            x = self.pool1(self.relu2(self.bn2(self.conv2(x))))
+            x = self.pool2(self.relu3(self.bn3(self.conv3(x))))
+            x = self.pool3(self.relu4(self.bn4(self.conv4(x))))
+            x = self.fc(self.flatten(self.pool4(x)))
         elif path == 'half1':
-            x = self.layer1(x)
-            x = self.layer2(x)
-            x = self.layer3(x)
-            x = self.layer4(x)
+            x = self.relu1(self.bn1(self.conv1(x)))
+            x = self.pool1(self.relu2(self.bn2(self.conv2(x))))
+            x = self.pool2(self.relu3(self.bn3(self.conv3(x))))
+            x = self.pool3(self.relu4(self.bn4(self.conv4(x))))
         elif path == 'half2':
-            x = self.layer5(x)
+            x = self.fc(self.flatten(self.pool4(x)))
         else:
             raise NotImplementedError
 

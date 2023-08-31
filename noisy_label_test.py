@@ -6,7 +6,7 @@ import numpy as np
 import csv
 import os
 
-import main
+import main_arg
 import datasets
 import models
 
