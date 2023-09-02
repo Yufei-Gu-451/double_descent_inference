@@ -7,7 +7,7 @@ import argparse
 import csv
 import os
 
-import main_arg
+import main
 import datasets
 import models
 
@@ -45,16 +45,17 @@ def get_clean_noisy_dataloader(dataset_path, noise_ratio, batch_size):
     org_train_dataset.data = org_train_dataset.data[clean_index]
     org_train_dataset.targets = org_train_dataset.targets[clean_index]
 
-    clean_label_dataloader = main_arg.DataLoaderX(org_train_dataset, batch_size=batch_size, shuffle=False,
+    clean_label_dataloader = main.DataLoaderX(org_train_dataset, batch_size=batch_size, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader_c = main_arg.DataLoaderX(noisy_train_dataset_c, batch_size=batch_size, shuffle=False,
+    noisy_label_dataloader_c = main.DataLoaderX(noisy_train_dataset_c, batch_size=batch_size, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader_n = main_arg.DataLoaderX(noisy_train_dataset_n, batch_size=batch_size, shuffle=False,
+    noisy_label_dataloader_n = main.DataLoaderX(noisy_train_dataset_n, batch_size=batch_size, shuffle=False,
                                                   num_workers=0, pin_memory=True)
 
     print(len(org_train_dataset), len(noisy_train_dataset_n), len(noisy_train_dataset_c))
 
     return clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, len(noisy_train_dataset_c)
+
 
 def get_hidden_features(dataset, model, dataloader):
     # Obtain the hidden features

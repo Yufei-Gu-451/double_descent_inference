@@ -22,8 +22,7 @@ class DataLoaderX(DataLoader):
 
 # Return the train_dataloader and test_dataloader of MINST
 def get_train_and_test_dataloader(args, dataset_path):
-    train_dataset = datasets.save_and_create_training_set(args.dataset, sample_size=args.sample_size,
-                label_noise_ratio=args.noise_ratio, dataset_path=dataset_path)
+    train_dataset = datasets.load_test_dataset_from_file(label_noise_ratio=args.noise_ratio, dataset_path=dataset_path)
 
     train_dataloader = DataLoaderX(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
@@ -173,7 +172,7 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
             status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr,
                         time, curr_time, dictionary_path=dictionary_path)
 
-    model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
+        model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
 
     return
 
@@ -189,9 +188,9 @@ if __name__ == '__main__':
     parser.add_argument('--noise_ratio', type=float, help='label noise ratio')
     parser.add_argument('--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str, help='neural network architecture')
 
-    parser.add_argument('--test_group', type=int, help='TEST GROUP')
-    parser.add_argument('--test_number_start', type=int, help='starting number of test number')
-    parser.add_argument('--test_number_end', type=int, help='ending number of test number')
+    parser.add_argument('--group', type=int, help='TEST GROUP')
+    parser.add_argument('--start', type=int, help='starting number of test number')
+    parser.add_argument('--end', type=int, help='ending number of test number')
 
     parser.add_argument('--hidden_units', action='append', type=int, help='hidden units / layer width')
 
@@ -215,13 +214,13 @@ if __name__ == '__main__':
     print(torch.cuda.get_device_capability(0))
 
     # Main Program
-    for test_number in range(args.test_number_start, args.test_number_end + 1):
+    for test_number in range(args.start, args.end + 1):
         # Setup seed for reproduction
         setup_seed(20 + test_number)
 
         # Define the roots and paths
         directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d-sgd" \
-                % (args.sample_size, args.test_group, args.gradient_step // 1000, args.noise_ratio * 100, test_number)
+                % (args.sample_size, args.group, args.gradient_step // 1000, args.noise_ratio * 100, test_number)
 
         dataset_path = os.path.join(directory, 'dataset')
         checkpoint_path = os.path.join(directory, "ckpt")

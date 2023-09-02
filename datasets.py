@@ -83,7 +83,7 @@ def get_test_dataset(DATASET):
         raise NotImplementedError
 
 
-def save_and_create_training_set(dataset, sample_size, label_noise_ratio, dataset_path):
+def generate_train_dataset(dataset, sample_size, label_noise_ratio, dataset_path):
     clean_dataset_path = os.path.join(dataset_path, 'clean-dataset.pth')
 
     if not os.path.exists(clean_dataset_path):
@@ -95,13 +95,10 @@ def save_and_create_training_set(dataset, sample_size, label_noise_ratio, datase
         print('Saving Clean Dataset...')
         torch.save(train_dataset, clean_dataset_path)
 
-    print('Loading Clean Dataset...')
-    train_dataset = torch.load(clean_dataset_path)
+    if label_noise_ratio > 0:
+        print('Loading Clean Dataset...')
+        train_dataset = torch.load(clean_dataset_path)
 
-    if label_noise_ratio == 0:
-        return train_dataset
-
-    elif label_noise_ratio > 0:
         noisy_dataset_path = os.path.join(dataset_path, 'noise-dataset-%d%%.pth' % (100 * label_noise_ratio))
 
         if not os.path.exists(noisy_dataset_path):
@@ -114,6 +111,15 @@ def save_and_create_training_set(dataset, sample_size, label_noise_ratio, datase
             print('Saving Noisy Dataset...')
             torch.save(train_dataset, noisy_dataset_path)
 
-        print('Loading Noisy Dataset...')
-        train_dataset = torch.load(noisy_dataset_path)
-        return train_dataset
+def load_train_dataset_from_file(label_noise_ratio, dataset_path):
+    if label_noise_ratio == 0:
+        dataset_path = os.path.join(dataset_path, 'clean-dataset.pth')
+    elif label_noise_ratio > 0:
+        dataset_path = os.path.join(dataset_path, 'noise-dataset-%d%%.pth' % (100 * label_noise_ratio))
+    else:
+        raise NotImplementedError
+
+    if os.path.exists(dataset_path):
+        return torch.load(dataset_path)
+    else:
+        raise NotImplementedError

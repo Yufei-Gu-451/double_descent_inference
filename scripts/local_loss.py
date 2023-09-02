@@ -3,7 +3,7 @@ import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 import numpy as np
 import models
-import main_arg
+import main
 import datasets as datasets_
 
 N_EPOCHS = 100
