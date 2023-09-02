@@ -5,6 +5,8 @@ import torchvision.transforms as transforms
 import numpy as np
 import os
 
+from PIL import Image
+
 class ListDataset(Dataset):
     def __init__(self, data_list):
         self.data_list = data_list
@@ -27,6 +29,20 @@ class ListDataset(Dataset):
             list.append([self.data[i], int(self.targets[i])])
 
         return list
+
+
+class ImageDataset(Dataset):
+    def __init__(self, data, targets):
+        self.data = data
+        self.targets = targets
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, index):
+        img, target = self.data[index], self.targets[index]
+
+        return img, target
 
 
 def get_train_dataset(DATASET):
@@ -67,40 +83,37 @@ def get_test_dataset(DATASET):
         raise NotImplementedError
 
 
-def save_and_create_training_set(DATASET, sample_size, label_noise_ratio, dataset_path):
-    clean_dataset_path = os.path.join(dataset_path, 'subset-clean.pth')
+def save_and_create_training_set(dataset, sample_size, label_noise_ratio, dataset_path):
+    clean_dataset_path = os.path.join(dataset_path, 'clean-dataset.pth')
 
     if not os.path.exists(clean_dataset_path):
-        print('Saving Clean Dataset...')
-        train_dataset = get_train_dataset(DATASET)
-        train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
+        train_dataset = get_train_dataset(dataset)
 
-        torch.save(list(train_dataset), clean_dataset_path)
+        if sample_size < 50000:
+            train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
+
+        print('Saving Clean Dataset...')
+        torch.save(train_dataset, clean_dataset_path)
+
+    print('Loading Clean Dataset...')
+    train_dataset = torch.load(clean_dataset_path)
 
     if label_noise_ratio == 0:
-        print('Loading Clean Dataset...')
-        return torch.load(clean_dataset_path)
+        return train_dataset
 
     elif label_noise_ratio > 0:
-        noisy_dataset_path = os.path.join(dataset_path, 'subset-noise-%d%%.pth' % (100 * label_noise_ratio))
+        noisy_dataset_path = os.path.join(dataset_path, 'noise-dataset-%d%%.pth' % (100 * label_noise_ratio))
 
         if not os.path.exists(noisy_dataset_path):
-            print('Generating Noisy Dataset...')
-            train_dataset_2_list = torch.load(clean_dataset_path)
-            train_dataset_2 = ListDataset(train_dataset_2_list)
+            num_noisy_samples = int(label_noise_ratio * len(train_dataset))
+            noisy_indices = np.random.choice(len(train_dataset), num_noisy_samples, replace=False)
 
-            label_noise_transform = transforms.Lambda(lambda y: torch.tensor(np.random.randint(0, 10)))
-            num_noisy_samples = int(label_noise_ratio * len(train_dataset_2))
-
-            noisy_indices = np.random.choice(len(train_dataset_2), num_noisy_samples, replace=False)
             for idx in noisy_indices:
-                train_dataset_2.targets[idx] = label_noise_transform(train_dataset_2.targets[idx])
+                train_dataset.dataset.targets[idx] = np.random.randint(0, 10)
 
-            print("%d Label Noise added to Train Data;\n" % (label_noise_ratio * 100))
-
-            torch.save(train_dataset_2.get_list(),
-                       os.path.join(dataset_path, 'subset-noise-%d%%.pth' % (100 * label_noise_ratio)))
+            print('Saving Noisy Dataset...')
+            torch.save(train_dataset, noisy_dataset_path)
 
         print('Loading Noisy Dataset...')
-        return torch.load(noisy_dataset_path)
-
+        train_dataset = torch.load(noisy_dataset_path)
+        return train_dataset

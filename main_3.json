@@ -1,6 +1,6 @@
 {
     "executor": "python main_arg.py",
-    "cuda": [1,1],
+    "cuda": [0, 0],
     "concurrency": 2,
     "configs": {
         "==base==": [
@@ -15,19 +15,14 @@
         ],
         "==more==": [
             [
-                "--hidden_units",   ["10"],
-                "--hidden_units",   ["4"],
-                "--hidden_units",   ["16"],
-                "--hidden_units",   ["8"],
-                "--hidden_units",   ["3"]
+                "--hidden_units",   ["36"],
+                "--hidden_units",   ["32"],
+                "--hidden_units",   ["28"]
             ],
             [
-                "--hidden_units",   ["14"],
-                "--hidden_units",   ["6"],
-                "--hidden_units",   ["2"],
-                "--hidden_units",   ["12"],
-                "--hidden_units",   ["5"],
-                "--hidden_units",   ["1"]
+                "--hidden_units",   ["24"],
+                "--hidden_units",   ["20"],
+                "--hidden_units",   ["18"]
             ]
         ]
     }

@@ -12,15 +12,6 @@ import argparse
 import models
 import datasets
 
-'''
-if args.model == 'SimpleFC':
-    hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
-                    80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
-elif args.model == 'CNN' or args.model == 'ResNet18':
-    hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
-else:
-    raise NotImplementedError
-'''
 
 # ------------------------------------------------------------------------------------------
 
@@ -88,15 +79,15 @@ def model_save(model, gradient_step, test_accuracy, checkpoint_path):
     torch.save(state, os.path.join(checkpoint_path, 'Model_State_Dict_%d.pth' % hidden_unit))
     print("Torch saved successfully!\n")
 
-def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr, time,
-                dictionary_path):
-    print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %f ; Train Acc : %.3f ; Test Loss : %f ; "
+def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr,
+                time, curr_time, dictionary_path):
+    print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %.3f ; Train Acc : %.3f ; Test Loss : %.3f ; "
           "Test Acc : %.3f\n" % (n_hidden_units, parameters, train_loss, train_acc, test_loss, test_acc))
 
     print('Writing to a csv file...')
     dictionary = {'Hidden Neurons': hidden_unit, 'Gradient Steps': gradient_step, 'Parameters': parameters,
                   'Train Loss': train_loss, 'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc,
-                  'Learning Rate': lr, 'Time Cost': time}
+                  'Learning Rate': lr, 'Time Cost': time, 'Date-Time': curr_time}
 
     with open(dictionary_path, "a", newline="") as fp:
         # Create a writer object
@@ -117,7 +108,7 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
     parameters = sum(p.numel() for p in model.parameters())
     n_hidden_units = model.n_hidden_units
 
-    gradient_step, gs_count = 0, 0
+    gradient_step, gs_count, test_acc = 0, 0, 0
 
     while gradient_step <= args.gradient_step:
         # Model Training
@@ -179,9 +170,8 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
             time = (curr_time - start_time).seconds / 60
             gs_count = gradient_step // args.test_gap
 
-            status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr, time,
-                            dictionary_path=dictionary_path)
-
+            status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr,
+                        time, curr_time, dictionary_path=dictionary_path)
 
     model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
 
@@ -225,7 +215,7 @@ if __name__ == '__main__':
     print(torch.cuda.get_device_capability(0))
 
     # Main Program
-    for test_number in [args.test_number_start, args.test_number_end + 1]:
+    for test_number in range(args.test_number_start, args.test_number_end + 1):
         # Setup seed for reproduction
         setup_seed(20 + test_number)
 
@@ -261,8 +251,8 @@ if __name__ == '__main__':
             dictionary_path = os.path.join(directory, "dictionary_%d.csv" % hidden_unit)
 
             # Initialize Status Dictionary
-            dictionary = {'Hidden Neurons': 0, 'Gradient Steps': 0, 'Parameters': 0, 'Train Loss': 0,
-                          'Train Accuracy': 0, 'Test Loss': 0, 'Test Accuracy': 0, 'Learning Rate': 0, 'Time Cost': 0}
+            dictionary = {'Hidden Neurons': 0, 'Gradient Steps': 0, 'Parameters': 0, 'Train Loss': 0, 'Train Accuracy': 0,
+                          'Test Loss': 0, 'Test Accuracy': 0, 'Learning Rate': 0, 'Time Cost': 0, 'Date-Time': 0}
 
             with open(dictionary_path, "a", newline="") as fp:
                 writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
