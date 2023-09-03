@@ -22,7 +22,7 @@ class DataLoaderX(DataLoader):
 
 # Return the train_dataloader and test_dataloader of MINST
 def get_train_and_test_dataloader(args, dataset_path):
-    train_dataset = datasets.load_test_dataset_from_file(label_noise_ratio=args.noise_ratio, dataset_path=dataset_path)
+    train_dataset = datasets.load_train_dataset_from_file(label_noise_ratio=args.noise_ratio, dataset_path=dataset_path)
 
     train_dataloader = DataLoaderX(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
@@ -109,6 +109,8 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
 
     gradient_step, gs_count, test_acc = 0, 0, 0
 
+    train_dataloader.data
+
     while gradient_step <= args.gradient_step:
         # Model Training
         model.train()
@@ -137,10 +139,9 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
         train_loss = cumulative_loss / (idx + 1)
         train_acc = correct / total
 
-        lr = optimizer.param_groups[0]['lr']
-
-        print("Gradient Step : %d(K) ; Train Loss : %f ; Train Acc : %.3f ; Learning Rate : %f" %
-              (gradient_step // 1000, train_loss, train_acc, lr))
+        # lr = optimizer.param_groups[0]['lr']
+        # print("Gradient Step : %d(K) ; Train Loss : %f ; Train Acc : %.3f ; Learning Rate : %f" %
+        #      (gradient_step // 1000, train_loss, train_acc, lr))
 
         # Test Model after every 10K Gradient Steps
         if gradient_step // args.test_gap > gs_count:

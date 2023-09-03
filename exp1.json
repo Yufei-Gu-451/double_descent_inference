@@ -1,6 +1,6 @@
 {
-    "executor": "python main_arg.py",
-    "cuda": [0,0],
+    "executor": "python main.py",
+    "cuda": [0,2],
     "concurrency": 2,
     "configs": {
         "==base==": [
@@ -9,9 +9,9 @@
             "--noise_ratio",        ["0.0"],
             "--model",              ["CNN"],
 
-            "--test_group",         ["0"],
-            "--test_number_start",  ["1"],
-            "--test_number_end",    ["1"]
+            "--group",              ["0"],
+            "--start",              ["1"],
+            "--end",                ["1"]
         ],
         "==more==": [
             [

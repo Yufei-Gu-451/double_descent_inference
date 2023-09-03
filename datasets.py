@@ -5,46 +5,6 @@ import torchvision.transforms as transforms
 import numpy as np
 import os
 
-from PIL import Image
-
-class ListDataset(Dataset):
-    def __init__(self, data_list):
-        self.data_list = data_list
-        self.data = []
-        self.targets = []
-
-        for i in range(len(data_list)):
-            self.data.append(data_list[i][0])
-            self.targets.append(data_list[i][1])
-
-    def __len__(self):
-        return len(self.data_list)
-
-    def __getitem__(self, index):
-        return self.data_list[index]
-
-    def get_list(self):
-        list = []
-        for i in range(self.__len__()):
-            list.append([self.data[i], int(self.targets[i])])
-
-        return list
-
-
-class ImageDataset(Dataset):
-    def __init__(self, data, targets):
-        self.data = data
-        self.targets = targets
-
-    def __len__(self):
-        return len(self.targets)
-
-    def __getitem__(self, index):
-        img, target = self.data[index], self.targets[index]
-
-        return img, target
-
-
 def get_train_dataset(DATASET):
     if DATASET == 'MNIST':
         transform = transforms.Compose([

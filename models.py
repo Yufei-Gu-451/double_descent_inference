@@ -172,27 +172,21 @@ class Simple_FC(nn.Module):
             torch.nn.init.normal_(self.features[1].weight, mean=0.0, std=0.1)
             torch.nn.init.normal_(self.classifier.weight, mean=0.0, std=0.1)
 
-    def forward_half1(self, x):
-        out = self.features(x)
-        out = out.view(out.size(0), -1)
-        return out
-
-    def forward_half2(self, x):
-        out = self.classifier(x)
-        return out
 
     def forward(self, x, path='all'):
         if path == 'all':
-            x = self.forward_half1(x)
-            x = self.forward_half2(x)
+            out = self.features(x)
+            out = out.view(out.size(0), -1)
+            out = self.classifier(out)
         elif path == 'half1':
-            x = self.forward_half1(x)
+            out = self.features(x)
+            out = out.view(out.size(0), -1)
         elif path == 'half2':
-            x = self.forward_half2(x)
+            out = self.classifier(x)
         else:
             raise NotImplementedError
 
-        return x
+        return out
 
 
 class LL_Layer(nn.Module):

@@ -1,7 +1,7 @@
 {
-    "executor": "python main_arg.py",
-    "cuda": [2,2,2,2,3,3,3,3],
-    "concurrency": 8,
+    "executor": "python main.py",
+    "cuda": [3,3,3],
+    "concurrency": 3,
     "configs": {
         "==base==": [
             "--dataset",            ["MNIST"],
@@ -9,36 +9,18 @@
             "--noise_ratio",        ["0.2"],
             "--model",              ["SimpleFC"],
 
-            "--test_group",         ["2"],
-            "--test_number_start",  ["0"],
-            "--test_number_end",    ["0"]
+            "--group",              ["2"],
+            "--start",              ["0"],
+            "--end",                ["0"]
         ],
         "==more==": [
             [
-                "--hidden_units",   ["400"]
-            ],
-            [
-                "--hidden_units",   ["100"]
-            ],
-            [
-                "--hidden_units",   ["60"]
-            ],
-            [
-                "--hidden_units",   ["40"]
-            ],
-            [
-                "--hidden_units",   ["22"]
-            ],
-            [
-                "--hidden_units",   ["14"],
                 "--hidden_units",   ["12"]
             ],
             [
-                "--hidden_units",   ["7"],
                 "--hidden_units",   ["6"]
             ],
             [
-                "--hidden_units",   ["2"],
                 "--hidden_units",   ["1"]
             ]
         ]
