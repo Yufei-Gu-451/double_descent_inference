@@ -16,6 +16,38 @@ import datasets
 # ------------------------------------------------------------------------------------------
 
 
+class BatchIndex:
+    def __init__(self, size, batch_size, shuffle=False, drop_last=True):
+        if drop_last:
+            self.index_list = [(x, x + batch_size,) for x in range(size) if
+                               not x % batch_size and x + batch_size <= size]
+        else:
+            li = [(x, x + batch_size,) for x in range(size) if not x % batch_size]
+            x, y = li[-1]
+            li[-1] = (x, size)
+            self.index_list = li
+            self.shuffle = shuffle
+            self.drop_last = drop_last
+
+        if shuffle:
+            import random as r
+            r.shuffle(self.index_list)
+
+    def __next__(self):
+        self.pos += 1
+        if self.pos >= len(self.index_list):
+            raise StopIteration
+
+        return self.index_list[self.pos]
+
+    def __iter__(self):
+        self.pos = -1
+        return self
+
+    def __len__(self):
+        return len(self.index_list)
+
+
 class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
@@ -33,6 +65,15 @@ def get_train_and_test_dataloader(args, dataset_path):
     print(f'Load {args.dataset} dataset success;')
 
     return train_dataloader, test_dataloader
+
+def get_train_and_test_dataset(args, dataset_path):
+    train_dataset = datasets.load_train_dataset_from_file(label_noise_ratio=args.noise_ratio, dataset_path=dataset_path)
+
+    test_dataset = datasets.get_test_dataset(DATASET=args.dataset)
+
+    print(f'Load {args.dataset} dataset success;')
+
+    return train_dataset, test_dataset
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -101,7 +142,7 @@ def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc
 
 
 # Train and Evalute the model
-def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloader, optimizer, criterion, dictionary_path, checkpoint_path):
+def train_and_evaluate_model(model, device, args, train_dataset, test_dataset, optimizer, criterion, dictionary_path, checkpoint_path):
     start_time = datetime.now()
 
     parameters = sum(p.numel() for p in model.parameters())
@@ -109,19 +150,26 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
 
     gradient_step, gs_count, test_acc = 0, 0, 0
 
+    train_inputs = torch.from_numpy(np.array(train_dataset.dataset.data)).to(device)
+    test_inputs = torch.from_numpy(np.array(test_dataset.data)).to(device)
+
+    train_labels = torch.from_numpy(np.array(train_dataset.dataset.targets))
+    train_labels = torch.nn.functional.one_hot(train_labels, num_classes=10).float().to(device)
+    test_labels = torch.from_numpy(np.array(test_dataset.targets))
+    test_labels = torch.nn.functional.one_hot(test_labels, num_classes=10).float().to(device)
+
     while gradient_step <= args.gradient_step:
         # Model Training
         model.train()
         cumulative_loss, correct, total, idx = 0.0, 0, 0, 0
 
-        for idx, (inputs, labels) in enumerate(train_dataloader):
+        for idx, (a, b) in enumerate(BatchIndex(args.sample_size, args.batch_size, True)):
             gradient_step += 1
             if gradient_step % 512 == 0:
-                optimizer.param_groups[0]['lr'] = args.lr / pow(gradient_step * 10 // 512, 0.5)
+                optimizer.param_groups[0]['lr'] = args.lr / pow(gradient_step // 512, 0.5)
 
-            labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
-            inputs = inputs.to(device, non_blocking=True)
-            labels = labels.to(device, non_blocking=True)
+            inputs = train_inputs[a:b]
+            labels = train_labels[a:b]
 
             optimizer.zero_grad()
             outputs = model(inputs)
@@ -148,10 +196,9 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
             cumulative_loss, correct, total, idx = 0.0, 0, 0, 0
 
             with torch.no_grad():
-                for idx, (inputs, labels) in enumerate(test_dataloader):
-                    labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
-                    inputs = inputs.to(device, non_blocking=True)
-                    labels = labels.to(device, non_blocking=True)
+                for idx, (a, b) in enumerate(BatchIndex(args.sample_size, args.batch_size, True)):
+                    inputs = test_inputs[a:b]
+                    labels = test_labels[a:b]
 
                     outputs = model(inputs)
                     loss = criterion(outputs, labels)
@@ -171,9 +218,9 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
             status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr,
                         time, curr_time, dictionary_path=dictionary_path)
 
-    model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
+        model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
 
-    return
+    return 0
 
 
 # ------------------------------------------------------------------------------------------
@@ -191,7 +238,7 @@ if __name__ == '__main__':
     parser.add_argument('--start', type=int, help='starting number of test number')
     parser.add_argument('--end', type=int, help='ending number of test number')
 
-    #parser.add_argument('--hidden_units', action='append', type=int, help='hidden units / layer width')
+    parser.add_argument('--hidden_units', action='append', type=int, help='hidden units / layer width')
 
     # parser.add_argument('-device', default='cuda:0', help='device')
     parser.add_argument('--batch_size', default=128, type=int, help='batch size')
@@ -212,16 +259,6 @@ if __name__ == '__main__':
     print('Using device : ', torch.cuda.get_device_name(0))
     print(torch.cuda.get_device_capability(0))
 
-    # Define Hidden Units
-    if args.model == 'SimpleFC':
-        hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
-                        80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
-    elif args.model == 'CNN' or args.model == 'ResNet18':
-        hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
-    else:
-        raise NotImplementedError
-
-
     # Main Program
     for test_number in range(args.start, args.end + 1):
         # Setup seed for reproduction
@@ -233,7 +270,6 @@ if __name__ == '__main__':
 
         dataset_path = os.path.join(directory, 'dataset')
         checkpoint_path = os.path.join(directory, "ckpt")
-        dictionary_path = os.path.join(directory, 'dictionary')
 
         if not os.path.isdir(directory):
             os.mkdir(directory)
@@ -241,15 +277,13 @@ if __name__ == '__main__':
             os.mkdir(dataset_path)
         if not os.path.isdir(checkpoint_path):
             os.mkdir(checkpoint_path)
-        if not os.path.isdir(dictionary_path):
-            os.mkdir(dictionary_path)
 
         # Get the training and testing data of specific sample size
-        train_dataloader, test_dataloader = get_train_and_test_dataloader(args=args, dataset_path=dataset_path)
+        train_dataset, test_dataset = get_train_and_test_dataset(args=args, dataset_path=dataset_path)
 
         # Main Training Unit
-        print('Hidden Units : ', hidden_units)
-        for hidden_unit in hidden_units:
+        print('Hidden Units : ', args.hidden_units)
+        for hidden_unit in args.hidden_units:
             # Generate the model with specific number of hidden_unit
             model = get_model(args.dataset, args.model, hidden_unit, device)
 
@@ -259,16 +293,16 @@ if __name__ == '__main__':
             criterion = criterion.to(device)
 
             # Setup the dictionary file for n_hidden_unit
-            dictionary_n_path = os.path.join(dictionary_path, "dictionary_%d.csv" % hidden_unit)
+            dictionary_path = os.path.join(directory, "dictionary_%d.csv" % hidden_unit)
 
             # Initialize Status Dictionary
             dictionary = {'Hidden Neurons': 0, 'Gradient Steps': 0, 'Parameters': 0, 'Train Loss': 0, 'Train Accuracy': 0,
                           'Test Loss': 0, 'Test Accuracy': 0, 'Learning Rate': 0, 'Time Cost': 0, 'Date-Time': 0}
 
-            with open(dictionary_n_path, "a", newline="") as fp:
+            with open(dictionary_path, "a", newline="") as fp:
                 writer = csv.DictWriter(fp, fieldnames=dictionary.keys())
                 writer.writeheader()
 
             # Train and evaluate the model
-            train_and_evaluate_model(model, device, args, train_dataloader, test_dataloader, optimizer, criterion,
-                                        dictionary_path=dictionary_n_path, checkpoint_path=checkpoint_path)
+            train_and_evaluate_model(model, device, args, train_dataset, test_dataset, optimizer, criterion,
+                                        dictionary_path=dictionary_path, checkpoint_path=checkpoint_path)

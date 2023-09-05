@@ -14,6 +14,8 @@ if __name__ == '__main__':
     parser.add_argument('--start', type=int, help='starting number of test number')
     parser.add_argument('--end', type=int, help='ending number of test number')
 
+    parser.add_argument('--gradient_step', default=500 * 1000, type=int, help='gradient steps used in experiment')
+
     args = parser.parse_args()
     print(args)
 
@@ -24,6 +26,8 @@ if __name__ == '__main__':
 
         dataset_path = os.path.join(directory, 'dataset')
 
+        if not os.path.isdir(directory):
+            os.mkdir(directory)
         if not os.path.isdir(dataset_path):
             os.mkdir(dataset_path)
 

@@ -1,7 +1,7 @@
 {
     "executor": "python main.py",
-    "cuda": [0,2],
-    "concurrency": 2,
+    "cuda": [0],
+    "concurrency": 1,
     "configs": {
         "==base==": [
             "--dataset",            ["CIFAR-10"],
@@ -15,16 +15,6 @@
         ],
         "==more==": [
             [
-                "--hidden_units",   ["28"],
-                "--hidden_units",   ["18"],
-                "--hidden_units",   ["16"],
-                "--hidden_units",   ["12"]
-            ],
-            [
-                "--hidden_units",   ["8"],
-                "--hidden_units",   ["5"],
-                "--hidden_units",   ["3"],
-                "--hidden_units",   ["2"],
                 "--hidden_units",   ["1"]
             ]
         ]

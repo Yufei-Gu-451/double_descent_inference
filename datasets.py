@@ -5,6 +5,42 @@ import torchvision.transforms as transforms
 import numpy as np
 import os
 
+
+class ListDataset(Dataset):
+    def __init__(self, data_list):
+        self.data_list = data_list
+        self.data = []
+        self.targets = []
+
+        for i in range(len(data_list)):
+            self.data.append(data_list[i][0])
+            self.targets.append(data_list[i][1])
+
+    def __len__(self):
+        return len(self.data_list)
+
+    def __getitem__(self, index):
+        return self.data_list[index]
+
+    def get_list(self):
+        list = []
+        for i in range(self.__len__()):
+            list.append([self.data[i], int(self.targets[i])])
+
+        return
+
+class ImageDataset(Dataset):
+    def __init__(self, data, targets):
+        self.data = data
+        self.targets = targets
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        return self.data[index], self.targets[index]
+
+
 def get_train_dataset(DATASET):
     if DATASET == 'MNIST':
         transform = transforms.Compose([
@@ -49,8 +85,7 @@ def generate_train_dataset(dataset, sample_size, label_noise_ratio, dataset_path
     if not os.path.exists(clean_dataset_path):
         train_dataset = get_train_dataset(dataset)
 
-        if sample_size < 50000:
-            train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
+        train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(sample_size))
 
         print('Saving Clean Dataset...')
         torch.save(train_dataset, clean_dataset_path)

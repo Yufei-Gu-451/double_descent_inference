@@ -30,31 +30,48 @@ def load_model(checkpoint_path, dataset, hidden_unit):
 
 def get_clean_noisy_dataloader(dataset_path, noise_ratio, batch_size):
     org_train_dataset = torch.load(os.path.join(dataset_path, 'clean-dataset.pth'))
-    noisy_train_dataset_n = torch.load(os.path.join(dataset_path, f'noise-dataset-{int(noise_ratio * 100)}%.pth'))
-    noisy_train_dataset_c = torch.load(os.path.join(dataset_path, f'noise-dataset-{int(noise_ratio * 100)}%.pth'))
+    noisy_train_dataset = torch.load(os.path.join(dataset_path, f'noise-dataset-{int(noise_ratio * 100)}%.pth'))
 
-    clean_index = [org_train_dataset.targets == noisy_train_dataset_n.targets]
-    noisy_index = [org_train_dataset.targets != noisy_train_dataset_n.targets]
+    clean_label_list, noisy_label_list_c, noisy_label_list_n = [], [], []
 
-    noisy_train_dataset_c.data = org_train_dataset.data[noisy_index]
-    noisy_train_dataset_c.targets = org_train_dataset.targets[noisy_index]
+    clean_index, noisy_index = [], []
 
-    noisy_train_dataset_n.data = org_train_dataset.data[noisy_index]
-    noisy_train_dataset_n.targets = noisy_train_dataset_n.targets[noisy_index]
+    for i in range(50000):
+        if org_train_dataset.dataset.targets[i] == noisy_train_dataset.dataset.targets[i]:
+            clean_index.append(True)
+            noisy_index.append(False)
+            #clean_label_list.append((org_train_dataset.dataset.data[i], org_train_dataset.dataset.targets[i]))
+        else:
+            clean_index.append(False)
+            noisy_index.append(True)
+            #noisy_label_list_c.append((org_train_dataset.dataset.data[i], org_train_dataset.dataset.targets[i]))
+            #noisy_label_list_n.append((noisy_train_dataset.dataset.data[i], noisy_train_dataset.dataset.targets[i]))
 
-    org_train_dataset.data = org_train_dataset.data[clean_index]
-    org_train_dataset.targets = org_train_dataset.targets[clean_index]
+    clean_data = org_train_dataset.dataset.data[clean_index]
+    clean_label = np.array(org_train_dataset.dataset.targets)[clean_index]
 
-    clean_label_dataloader = main.DataLoaderX(org_train_dataset, batch_size=batch_size, shuffle=False,
+    noisy_data = noisy_train_dataset.dataset.data[noisy_index]
+    noisy_label_n = np.array(noisy_train_dataset.dataset.targets)[noisy_index]
+    noisy_label_c = np.array(org_train_dataset.dataset.targets)[noisy_index]
+
+    clean_dataset = datasets.ImageDataset(clean_data, clean_label)
+    noisy_dataset_n = datasets.ImageDataset(noisy_data, noisy_label_n)
+    noisy_dataset_c = datasets.ImageDataset(noisy_data, noisy_label_c)
+
+    print(len(clean_data), len(clean_label), len(noisy_data), len(noisy_label_c))
+
+    #clean_label_dataset = datasets.ListDataset(clean_label_list)
+    #noisy_label_dataset_c = datasets.ListDataset(noisy_label_list_c)
+    #noisy_label_dataset_n = datasets.ListDataset(noisy_label_list_n)
+
+    clean_label_dataloader = main.DataLoaderX(clean_dataset, batch_size=batch_size, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader_c = main.DataLoaderX(noisy_train_dataset_c, batch_size=batch_size, shuffle=False,
+    noisy_label_dataloader_c = main.DataLoaderX(noisy_dataset_c, batch_size=batch_size, shuffle=False,
                                                       num_workers=0, pin_memory=True)
-    noisy_label_dataloader_n = main.DataLoaderX(noisy_train_dataset_n, batch_size=batch_size, shuffle=False,
+    noisy_label_dataloader_n = main.DataLoaderX(noisy_dataset_n, batch_size=batch_size, shuffle=False,
                                                   num_workers=0, pin_memory=True)
 
-    print(len(org_train_dataset), len(noisy_train_dataset_n), len(noisy_train_dataset_c))
-
-    return clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, len(noisy_train_dataset_c)
+    return clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, len(noisy_dataset_c)
 
 
 def get_hidden_features(dataset, model, dataloader):
@@ -63,7 +80,7 @@ def get_hidden_features(dataset, model, dataloader):
 
     with torch.no_grad():
         for idx, (inputs, labels) in enumerate(dataloader):
-            hidden_feature = model(inputs, path='half1')
+            hidden_feature = model(inputs.to(torch.float32), path='half1')
             outputs = model(hidden_feature, path='half2')
 
             for input in inputs:
@@ -211,9 +228,9 @@ if __name__ == '__main__':
     parser.add_argument('--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str,
                         help='neural network architecture')
 
-    parser.add_argument('--test_group', type=int, help='TEST GROUP')
-    parser.add_argument('--test_number_start', type=int, help='starting number of test number')
-    parser.add_argument('--test_number_end', type=int, help='ending number of test number')
+    parser.add_argument('--group', type=int, help='TEST GROUP')
+    parser.add_argument('--start', type=int, help='starting number of test number')
+    parser.add_argument('--end', type=int, help='ending number of test number')
 
     #parser.add_argument('--hidden_units', action='append', type=int, help='hidden units / layer width')
 
@@ -247,10 +264,10 @@ if __name__ == '__main__':
     train_accuracy, test_accuracy, train_losses, test_losses = [], [], [], []
     knn_5_accuracy_list = []
 
-    for test_number in range(args.test_number_start, args.test_number_end + 1):
+    for test_number in range(args.start, args.end + 1):
         # Define the roots and paths
         directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d-sgd" \
-                % (args.sample_size, args.test_group, args.gradient_step // 1000, args.noise_ratio * 100, test_number)
+                % (args.sample_size, args.group, args.gradient_step // 1000, args.noise_ratio * 100, test_number)
 
         train_accuracy.append([])
         test_accuracy.append([])
@@ -259,7 +276,7 @@ if __name__ == '__main__':
 
         for hidden_unit in hidden_units:
         # Get Parameters and dataset Losses
-            dictionary_path = os.path.join(directory, "dictionary_%d.csv" % hidden_unit)
+            dictionary_path = os.path.join(directory, "dictionary/dictionary_%d.csv" % hidden_unit)
 
             with open(dictionary_path, "r", newline="") as infile:
                 reader = csv.DictReader(infile)
@@ -271,8 +288,8 @@ if __name__ == '__main__':
                         test_losses[-1].append(float(row['Test Loss']))
 
         # Run KNN Test
-        #if args.noise_ratio > 0:
-        #    knn_5_accuracy_list.append(knn_prediction_test(directory, hidden_units, args))
+        if args.noise_ratio > 0:
+           knn_5_accuracy_list.append(knn_prediction_test(directory, hidden_units, args))
 
     train_accuracy = np.mean(np.array(train_accuracy), axis=0)
     test_accuracy = np.mean(np.array(test_accuracy), axis=0)
@@ -315,11 +332,11 @@ if __name__ == '__main__':
 
     if args.noise_ratio > 0:
         ax2 = ax1.twinx()
-        #ln3 = ax2.plot(hidden_units, knn_5_accuracy_list, label='KNN Prediction Accuracy (k = 5)', color='cyan')
+        ln3 = ax2.plot(hidden_units, knn_5_accuracy_list, label='KNN Prediction Accuracy (k = 5)', color='cyan')
         ax2.set_ylabel('KNN Label Accuracy (100%)')
         ax2.set_ylim([0, 1.05])
 
-        lns = ln1 + ln2# + ln3
+        lns = ln1 + ln2 + ln3
     elif args.noise_ratio == 0:
         lns = ln1 + ln2
     else:
@@ -342,4 +359,4 @@ if __name__ == '__main__':
     # Plot Title and Save
     plt.title(f'Experiment Results on {args.dataset} (N=%d, p=%d%%)' % (args.sample_size, args.noise_ratio * 100))
     plt.savefig(f'assets/{args.dataset}-{args.model}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-ER.png' %
-                (args.sample_size, args.test_group, args.gradient_step // 1000, args.noise_ratio * 100))
+                (args.sample_size, args.group, args.gradient_step // 1000, args.noise_ratio * 100))
