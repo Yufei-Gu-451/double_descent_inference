@@ -10,18 +10,19 @@ from prefetch_generator import BackgroundGenerator
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 
+import datasets
 
 # ------------------------------------------------------------------------------------------
 
 
 # Training Settings
 lr_decay = True
-CNN_widths = [6, 10, 12, 16, 20, 40, 60]
+CNN_widths = [4, 8, 12, 16, 20]
 n_epochs = 100
 learning_rate = 0.1
-label_noise_ratio = 0.2
+label_noise_ratio = 0.0
 
-directory = "assets/CIFAR-10/N=50000-3D/epoch=%d-noise=%d-tsne" % (n_epochs, label_noise_ratio * 100)
+directory = "assets/CIFAR-10-CNN/N=50000-3D/epoch=%d-noise=%d-tsne" % (n_epochs, label_noise_ratio * 100)
 
 output_file = os.path.join(directory, "epoch=%d-noise=%d.txt" % (n_epochs, label_noise_ratio * 100))
 tsne_path = os.path.join(directory, "t-SNE")
@@ -42,6 +43,7 @@ class DataLoaderX(DataLoader):
     def __iter__(self):
         return BackgroundGenerator(super().__iter__())
 
+
 # Return the trainloader and testloader of MINST
 def get_train_and_test_dataloader():
     transform = transforms.Compose(
@@ -49,7 +51,7 @@ def get_train_and_test_dataloader():
          transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
     )
 
-    trainset = datasets.CIFAR10(root='./data', train=True, download=True, transform=transform)
+    trainset = datasets.CIFAR10(root='./data/CIFAR-10', train=True, download=True, transform=transform)
 
     if label_noise_ratio > 0:
         if label_noise_ratio > 0:
@@ -63,13 +65,69 @@ def get_train_and_test_dataloader():
 
     trainloader = DataLoaderX(trainset, batch_size=128, shuffle=True, num_workers=0, pin_memory=False)
 
-    testset = datasets.CIFAR10(root='./data', train=False, download=True, transform=transform)
+    testset = datasets.CIFAR10(root='./data/CIFAR-10', train=False, download=True, transform=transform)
 
     testloader = DataLoaderX(testset, batch_size=1, shuffle=False, num_workers=0, pin_memory=False)
 
     print('Load CIFAR-10 dataset success;\n')
 
     return trainloader, testloader
+
+
+def get_train_and_test_dataloader_2():
+    dataset_path = os.path.join(directory, 'dataset')
+    if not os.path.isdir(dataset_path):
+        os.mkdir(dataset_path)
+
+    transform = transforms.Compose(
+        [transforms.ToTensor(),
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+    )
+
+    clean_dataset_path = os.path.join(dataset_path, 'clean-dataset.pth')
+
+    if not os.path.exists(clean_dataset_path):
+        train_dataset = datasets.get_train_dataset('CIFAR-10')
+        #train_dataset = datasets.CIFAR10(root='./data/CIFAR-10', train=True, download=True, transform=transform)
+
+        train_dataset = torch.utils.data.Subset(train_dataset, indices=np.arange(50000))
+
+        print('Saving Clean Dataset...')
+        torch.save(train_dataset, clean_dataset_path)
+
+    if label_noise_ratio > 0:
+        noisy_dataset_path = os.path.join(dataset_path, 'noise-dataset-%d%%.pth' % (100 * label_noise_ratio))
+
+        if not os.path.exists(noisy_dataset_path):
+            print('Loading Clean Dataset...')
+            train_dataset = torch.load(clean_dataset_path)
+
+            label_noise_transform = transforms.Lambda(lambda y: np.random.randint(0, 10))
+
+            num_samples = len(train_dataset)
+            num_noisy_samples = int(label_noise_ratio * num_samples)
+
+            noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
+            for idx in noisy_indices:
+                train_dataset.dataset.targets[idx] = label_noise_transform(train_dataset.dataset.targets[idx])
+
+            print('Saving Noisy Dataset...')
+            torch.save(train_dataset, noisy_dataset_path)
+
+        train_dataset_2 = torch.load(noisy_dataset_path)
+    else:
+        train_dataset_2 = torch.load(clean_dataset_path)
+
+    train_dataloader = DataLoaderX(train_dataset_2, batch_size=128, shuffle=True, num_workers=0, pin_memory=True)
+
+    test_dataset = datasets.get_test_dataset('CIFAR-10')
+    #test_dataset = datasets.CIFAR10(root='./data/CIFAR-10', train=False, download=True, transform=transform)
+
+    test_dataloader = DataLoaderX(test_dataset, batch_size=128, shuffle=False, num_workers=0, pin_memory=True)
+
+    print(f'Load CIFAR-10 dataset success;')
+
+    return train_dataloader, test_dataloader
 
 
 # ------------------------------------------------------------------------------------------\
@@ -229,7 +287,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
         train_loss = cumulative_loss / len(trainloader)
         train_acc = correct / total
 
-        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f" % (i, train_loss, train_acc))
+        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f ; Gradient Steps : %d" % (i, train_loss, train_acc, total_train_step))
 
     model.eval()
     cumulative_loss, correct, total = 0.0, 0, 0
@@ -251,7 +309,7 @@ def train_and_evaluate_model(trainloader, testloader, model, optimizer, criterio
     test_loss = cumulative_loss / len(testloader)
     test_acc = correct / total
 
-    model_t_sne(model, trainloader, CNN_width)
+    #model_t_sne(model, trainloader, CNN_width)
 
     state = {
         'net': model.state_dict(),
@@ -275,7 +333,7 @@ if __name__ == '__main__':
     torch.backends.cudnn.benchmark = True
 
     # Get the training and testing data of specific sample size
-    trainloader, testloader = get_train_and_test_dataloader()
+    trainloader, testloader = get_train_and_test_dataloader_2()
 
     # Main Training Unit
     for CNN_width in CNN_widths:

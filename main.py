@@ -117,7 +117,7 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
         for idx, (inputs, labels) in enumerate(train_dataloader):
             gradient_step += 1
             if gradient_step % 512 == 0:
-                optimizer.param_groups[0]['lr'] = args.lr / pow(gradient_step * 10 // 512, 0.5)
+                optimizer.param_groups[0]['lr'] = args.lr / pow(gradient_step // 512, 0.5)
 
             labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             inputs = inputs.to(device, non_blocking=True)
@@ -191,16 +191,16 @@ if __name__ == '__main__':
     parser.add_argument('--start', type=int, help='starting number of test number')
     parser.add_argument('--end', type=int, help='ending number of test number')
 
-    #parser.add_argument('--hidden_units', action='append', type=int, help='hidden units / layer width')
+    parser.add_argument('--hidden_units', action='append', type=int, help='hidden units / layer width')
 
     # parser.add_argument('-device', default='cuda:0', help='device')
     parser.add_argument('--batch_size', default=128, type=int, help='batch size')
     parser.add_argument('--workers', default=0, type=int, help='number of data loading workers')
 
-    parser.add_argument('--gradient_step', default=500 * 1000, type=int, help='gradient steps used in experiment')
+    parser.add_argument('--gradient_step', default=100 * 1000, type=int, help='gradient steps used in experiment')
     parser.add_argument('--test-gap', default=10 * 1000, type=int, help='gradient step gap to test the model')
     parser.add_argument('--opt', default='sgd', type=str, help='use which optimizer. SGD or Adam')
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
     # parser.add_argument('-momentum', default=0.0, type=float, help='momentum for SGD')
 
     args = parser.parse_args()
@@ -213,6 +213,8 @@ if __name__ == '__main__':
     print(torch.cuda.get_device_capability(0))
 
     # Define Hidden Units
+    hidden_units = args.hidden_units
+    '''
     if args.model == 'SimpleFC':
         hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
                         80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
@@ -220,6 +222,7 @@ if __name__ == '__main__':
         hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
     else:
         raise NotImplementedError
+    '''
 
 
     # Main Program
@@ -234,15 +237,6 @@ if __name__ == '__main__':
         dataset_path = os.path.join(directory, 'dataset')
         checkpoint_path = os.path.join(directory, "ckpt")
         dictionary_path = os.path.join(directory, 'dictionary')
-
-        if not os.path.isdir(directory):
-            os.mkdir(directory)
-        if not os.path.isdir(dataset_path):
-            os.mkdir(dataset_path)
-        if not os.path.isdir(checkpoint_path):
-            os.mkdir(checkpoint_path)
-        if not os.path.isdir(dictionary_path):
-            os.mkdir(dictionary_path)
 
         # Get the training and testing data of specific sample size
         train_dataloader, test_dataloader = get_train_and_test_dataloader(args=args, dataset_path=dataset_path)

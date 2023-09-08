@@ -96,7 +96,6 @@ class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), x.size(1))
 
-
 class FiveLayerCNN(nn.Module):
     def __init__(self, k):
         self.n_hidden_units = k
@@ -112,7 +111,7 @@ class FiveLayerCNN(nn.Module):
         self.conv2 = nn.Conv2d(k, 2 * k, kernel_size=3, stride=1, padding=1, bias=True)
         self.bn2 = nn.BatchNorm2d(2 * k)
         self.relu2 = nn.ReLU()
-        self.pool1 = nn.MaxPool2d(1)
+        self.pool1 = nn.MaxPool2d(2)
 
         # Layer 2
         self.conv3 = nn.Conv2d(2 * k, 4 * k, kernel_size=3, stride=1, padding=1, bias=True)
@@ -127,24 +126,26 @@ class FiveLayerCNN(nn.Module):
         self.pool3 = nn.MaxPool2d(2)
 
         # Layer 4
-        self.pool4 = nn.MaxPool2d(8)
+        self.pool4 = nn.MaxPool2d(4)
         self.flatten = Flatten()
         self.fc = nn.Linear(8 * k, 10, bias=True)
 
     def forward(self, x, path='all'):
         if path == 'all':
-            x = self.relu1(self.bn1(self.conv1(x)))
-            x = self.pool1(self.relu2(self.bn2(self.conv2(x))))
-            x = self.pool2(self.relu3(self.bn3(self.conv3(x))))
-            x = self.pool3(self.relu4(self.bn4(self.conv4(x))))
-            x = self.fc(self.flatten(self.pool4(x)))
+            x = self.pool1(self.relu1(self.bn1(self.conv1(x))))
+            x = self.pool2(self.relu2(self.bn2(self.conv2(x))))
+            x = self.pool3(self.relu3(self.bn3(self.conv3(x))))
+            x = self.pool4(self.relu4(self.bn4(self.conv4(x))))
+            x = x.view(x.size(0), -1)
+            x = self.fc(x)
         elif path == 'half1':
-            x = self.relu1(self.bn1(self.conv1(x)))
-            x = self.pool1(self.relu2(self.bn2(self.conv2(x))))
-            x = self.pool2(self.relu3(self.bn3(self.conv3(x))))
-            x = self.pool3(self.relu4(self.bn4(self.conv4(x))))
+            x = self.pool1(self.relu1(self.bn1(self.conv1(x))))
+            x = self.pool2(self.relu2(self.bn2(self.conv2(x))))
+            x = self.pool3(self.relu3(self.bn3(self.conv3(x))))
+            x = self.pool4(self.relu4(self.bn4(self.conv4(x))))
+            x = x.view(x.size(0), -1)
         elif path == 'half2':
-            x = self.fc(self.flatten(self.pool4(x)))
+            x = self.fc(x)
         else:
             raise NotImplementedError
 

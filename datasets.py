@@ -49,12 +49,10 @@ def get_train_dataset(DATASET):
 
         return datasets.MNIST(root='./data', train=True, download=True, transform=transform)
     elif DATASET == 'CIFAR-10':
-        transform = transforms.Compose(
-            [transforms.RandomCrop(32, padding=4),
-             transforms.RandomHorizontalFlip(),
+        transform = transforms.Compose([
              transforms.ToTensor(),
-             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
-        )
+             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
 
         return datasets.CIFAR10(root='./data/CIFAR-10', train=True, download=True, transform=transform)
     else:
@@ -69,10 +67,10 @@ def get_test_dataset(DATASET):
 
         return datasets.MNIST(root='./data', train=False, download=True, transform=transform)
     elif DATASET == 'CIFAR-10':
-        transform = transforms.Compose(
-            [transforms.ToTensor(),
-             transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]
-        )
+        transform = transforms.Compose([
+             transforms.ToTensor(),
+             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+        ])
 
         return datasets.CIFAR10(root='./data/CIFAR-10', train=False, download=True, transform=transform)
     else:
@@ -91,17 +89,20 @@ def generate_train_dataset(dataset, sample_size, label_noise_ratio, dataset_path
         torch.save(train_dataset, clean_dataset_path)
 
     if label_noise_ratio > 0:
-        print('Loading Clean Dataset...')
-        train_dataset = torch.load(clean_dataset_path)
-
         noisy_dataset_path = os.path.join(dataset_path, 'noise-dataset-%d%%.pth' % (100 * label_noise_ratio))
 
         if not os.path.exists(noisy_dataset_path):
-            num_noisy_samples = int(label_noise_ratio * len(train_dataset))
-            noisy_indices = np.random.choice(len(train_dataset), num_noisy_samples, replace=False)
+            print('Loading Clean Dataset...')
+            train_dataset = torch.load(clean_dataset_path)
 
+            label_noise_transform = transforms.Lambda(lambda y: np.random.randint(0, 10))
+
+            num_samples = len(train_dataset)
+            num_noisy_samples = int(label_noise_ratio * num_samples)
+
+            noisy_indices = np.random.choice(num_samples, num_noisy_samples, replace=False)
             for idx in noisy_indices:
-                train_dataset.dataset.targets[idx] = np.random.randint(0, 10)
+                train_dataset.dataset.targets[idx] = label_noise_transform(train_dataset.dataset.targets[idx])
 
             print('Saving Noisy Dataset...')
             torch.save(train_dataset, noisy_dataset_path)

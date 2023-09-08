@@ -28,25 +28,20 @@ def load_model(checkpoint_path, dataset, hidden_unit):
     return model
 
 
-def get_clean_noisy_dataloader(dataset_path, noise_ratio, batch_size):
+def get_clean_noisy_dataloader_cifar(dataset_path, sample_size, noise_ratio, batch_size):
+    # Load Clean and Noisy Dataset
     org_train_dataset = torch.load(os.path.join(dataset_path, 'clean-dataset.pth'))
     noisy_train_dataset = torch.load(os.path.join(dataset_path, f'noise-dataset-{int(noise_ratio * 100)}%.pth'))
 
-    clean_label_list, noisy_label_list_c, noisy_label_list_n = [], [], []
-
+    # Filter Cleand and Noisy Data Index
     clean_index, noisy_index = [], []
-
-    for i in range(50000):
+    for i in range(4000):
         if org_train_dataset.dataset.targets[i] == noisy_train_dataset.dataset.targets[i]:
-            clean_index.append(True)
-            noisy_index.append(False)
-            #clean_label_list.append((org_train_dataset.dataset.data[i], org_train_dataset.dataset.targets[i]))
+            clean_index.append(i)
         else:
-            clean_index.append(False)
-            noisy_index.append(True)
-            #noisy_label_list_c.append((org_train_dataset.dataset.data[i], org_train_dataset.dataset.targets[i]))
-            #noisy_label_list_n.append((noisy_train_dataset.dataset.data[i], noisy_train_dataset.dataset.targets[i]))
+            noisy_index.append(i)
 
+    # Filter Cleand and Noisy Data
     clean_data = org_train_dataset.dataset.data[clean_index]
     clean_label = np.array(org_train_dataset.dataset.targets)[clean_index]
 
@@ -54,16 +49,49 @@ def get_clean_noisy_dataloader(dataset_path, noise_ratio, batch_size):
     noisy_label_n = np.array(noisy_train_dataset.dataset.targets)[noisy_index]
     noisy_label_c = np.array(org_train_dataset.dataset.targets)[noisy_index]
 
+    # Create Clean and Noisy Training Dataset
     clean_dataset = datasets.ImageDataset(clean_data, clean_label)
     noisy_dataset_n = datasets.ImageDataset(noisy_data, noisy_label_n)
     noisy_dataset_c = datasets.ImageDataset(noisy_data, noisy_label_c)
 
-    print(len(clean_data), len(clean_label), len(noisy_data), len(noisy_label_c))
+    # Create Clean and Noisy Training Dataloader
+    clean_label_dataloader = main.DataLoaderX(clean_dataset, batch_size=batch_size, shuffle=False,
+                                              num_workers=0, pin_memory=True)
+    noisy_label_dataloader_c = main.DataLoaderX(noisy_dataset_c, batch_size=batch_size, shuffle=False,
+                                                num_workers=0, pin_memory=True)
+    noisy_label_dataloader_n = main.DataLoaderX(noisy_dataset_n, batch_size=batch_size, shuffle=False,
+                                                num_workers=0, pin_memory=True)
 
-    #clean_label_dataset = datasets.ListDataset(clean_label_list)
-    #noisy_label_dataset_c = datasets.ListDataset(noisy_label_list_c)
-    #noisy_label_dataset_n = datasets.ListDataset(noisy_label_list_n)
+    return clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, len(noisy_dataset_c)
 
+
+def get_clean_noisy_dataloader_mnist(dataset_path, sample_size, noise_ratio, batch_size):
+    # Load Clean and Noisy Dataset
+    org_train_dataset = torch.load(os.path.join(dataset_path, 'clean-dataset.pth'))
+    noisy_train_dataset = torch.load(os.path.join(dataset_path, f'noise-dataset-{int(noise_ratio * 100)}%.pth'))
+
+    # Filter Cleand and Noisy Data Index
+    clean_index, noisy_index = [], []
+    for i in range(4000):
+        if org_train_dataset.dataset.targets[i] == noisy_train_dataset.dataset.targets[i]:
+            clean_index.append(i)
+        else:
+            noisy_index.append(i)
+
+    # Filter Cleand and Noisy Data
+    clean_data = org_train_dataset.dataset.data[clean_index]
+    clean_label = org_train_dataset.dataset.targets[clean_index]
+
+    noisy_data = noisy_train_dataset.dataset.data[noisy_index]
+    noisy_label_n = noisy_train_dataset.dataset.targets[noisy_index]
+    noisy_label_c = org_train_dataset.dataset.targets[noisy_index]
+
+    # Create Clean and Noisy Training Dataset
+    clean_dataset = datasets.ImageDataset(clean_data, clean_label)
+    noisy_dataset_n = datasets.ImageDataset(noisy_data, noisy_label_n)
+    noisy_dataset_c = datasets.ImageDataset(noisy_data, noisy_label_c)
+
+    # Create Clean and Noisy Training Dataloader
     clean_label_dataloader = main.DataLoaderX(clean_dataset, batch_size=batch_size, shuffle=False,
                                                       num_workers=0, pin_memory=True)
     noisy_label_dataloader_c = main.DataLoaderX(noisy_dataset_c, batch_size=batch_size, shuffle=False,
@@ -98,6 +126,7 @@ def get_hidden_features(dataset, model, dataloader):
             for label in labels:
                 true_labels.append(label)
 
+    # Define image_size and feature size by Dataset
     if dataset == 'MNIST':
         image_size = 28 * 28
         feature_size = model.n_hidden_units
@@ -107,6 +136,7 @@ def get_hidden_features(dataset, model, dataloader):
     else:
         raise NotImplementedError
 
+    # Reshape all numpy arrays
     data = np.array(data).reshape(len(true_labels), image_size)
     hidden_features = np.array(hidden_features).reshape(len(true_labels), feature_size)
     predicts = np.array(predicts).reshape(len(true_labels), )
@@ -140,8 +170,17 @@ def test(model, test_dataloader):
 def knn_prediction_test(directory, hidden_units, args):
     print('\nKNN Prediction Test\n')
     dataset_path = os.path.join(directory, 'dataset')
-    clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
-        get_clean_noisy_dataloader(dataset_path, noise_ratio=args.noise_ratio, batch_size=args.batch_size)
+
+    # Load cleand and noisy dataloader
+    if args.dataset == 'MNIST':
+        clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
+            get_clean_noisy_dataloader_mnist(dataset_path, sample_size=args.sample_size, noise_ratio=args.noise_ratio, batch_size=args.batch_size)
+    elif args.dataset == 'CIFAR-10':
+        clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
+            get_clean_noisy_dataloader_cifar(dataset_path, sample_size=args.sample_size, noise_ratio=args.noise_ratio,
+                                             batch_size=args.batch_size)
+    else:
+        raise NotImplementedError
 
     knn_5_accuracy_list = []
 
@@ -171,8 +210,19 @@ def decision_boundary_test(args, directory):
 
     for test_number in [args.test_number_start, args.test_number_end + 1]:
         dataset_path = os.path.join(directory, 'dataset')
-        clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
-            get_clean_noisy_dataloader(dataset_path, batch_size=args.batch_size)
+
+        # Load cleand and noisy dataloader
+        if args.dataset == 'MNIST':
+            clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
+                get_clean_noisy_dataloader_mnist(dataset_path, sample_size=args.sample_size,
+                                                 noise_ratio=args.noise_ratio, batch_size=args.batch_size)
+        elif args.dataset == 'CIFAR-10':
+            clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
+                get_clean_noisy_dataloader_cifar(dataset_path, sample_size=args.sample_size,
+                                                 noise_ratio=args.noise_ratio,
+                                                 batch_size=args.batch_size)
+        else:
+            raise NotImplementedError
 
         decision_boundary_distance.append([])
 
@@ -238,7 +288,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=128, type=int, help='batch size')
     parser.add_argument('--workers', default=0, type=int, help='number of data loading workers')
 
-    parser.add_argument('--gradient_step', default=500 * 1000, type=int, help='gradient steps used in experiment')
+    parser.add_argument('--gradient_step', default=100 * 1000, type=int, help='gradient steps used in experiment')
     parser.add_argument('--test-gap', default=10 * 1000, type=int, help='gradient step gap to test the model')
     parser.add_argument('--opt', default='sgd', type=str, help='use which optimizer. SGD or Adam')
     parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
@@ -251,7 +301,7 @@ if __name__ == '__main__':
         hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
                         80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
     elif args.model == 'CNN' or args.model == 'ResNet18':
-        hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+        hidden_units = [2, 3, 5, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
     else:
         raise NotImplementedError
 
@@ -262,7 +312,7 @@ if __name__ == '__main__':
     print(torch.cuda.get_device_capability(0))
 
     train_accuracy, test_accuracy, train_losses, test_losses = [], [], [], []
-    knn_5_accuracy_list = []
+    knn_test, knn_5_accuracy_list = False, []
 
     for test_number in range(args.start, args.end + 1):
         # Define the roots and paths
@@ -288,7 +338,7 @@ if __name__ == '__main__':
                         test_losses[-1].append(float(row['Test Loss']))
 
         # Run KNN Test
-        if args.noise_ratio > 0:
+        if knn_test and args.noise_ratio > 0:
            knn_5_accuracy_list.append(knn_prediction_test(directory, hidden_units, args))
 
     train_accuracy = np.mean(np.array(train_accuracy), axis=0)
@@ -296,7 +346,7 @@ if __name__ == '__main__':
     train_losses = np.mean(np.array(train_losses), axis=0)
     test_losses = np.mean(np.array(test_losses), axis=0)
 
-    if args.noise_ratio > 0:
+    if knn_test and args.noise_ratio > 0:
         knn_5_accuracy_list = np.mean(np.array(knn_5_accuracy_list), axis=0)
 
     # Plot the Diagram
@@ -330,17 +380,15 @@ if __name__ == '__main__':
     ax1.set_ylabel('Accuracy (100%)')
     ax1.set_ylim([0, 1.05])
 
-    if args.noise_ratio > 0:
+    if knn_test and args.noise_ratio > 0:
         ax2 = ax1.twinx()
         ln3 = ax2.plot(hidden_units, knn_5_accuracy_list, label='KNN Prediction Accuracy (k = 5)', color='cyan')
         ax2.set_ylabel('KNN Label Accuracy (100%)')
         ax2.set_ylim([0, 1.05])
 
         lns = ln1 + ln2 + ln3
-    elif args.noise_ratio == 0:
-        lns = ln1 + ln2
     else:
-        raise NotImplementedError
+        lns = ln1 + ln2
 
     labs = [l.get_label() for l in lns]
     ax1.legend(lns, labs, loc=0)
