@@ -33,26 +33,24 @@ def get_clean_noisy_dataloader_cifar(dataset_path, sample_size, noise_ratio, bat
     org_train_dataset = torch.load(os.path.join(dataset_path, 'clean-dataset.pth'))
     noisy_train_dataset = torch.load(os.path.join(dataset_path, f'noise-dataset-{int(noise_ratio * 100)}%.pth'))
 
-    # Filter Cleand and Noisy Data Index
-    clean_index, noisy_index = [], []
-    for i in range(4000):
-        if org_train_dataset.dataset.targets[i] == noisy_train_dataset.dataset.targets[i]:
-            clean_index.append(i)
+    org_train_dataset = datasets.ListDataset(list(org_train_dataset))
+    noisy_train_dataset = datasets.ListDataset(list(noisy_train_dataset))
+
+    # Spilt the Training set to the ones with clean labels and the ones with random (noisy) labels
+    clean_label_list, noisy_label_list_c, noisy_label_list_n = [], [], []
+
+    for i in range(len(org_train_dataset)):
+        data = org_train_dataset[i][0].numpy()
+
+        if org_train_dataset[i][1] != noisy_train_dataset[i][1]:
+            noisy_label_list_c.append((data, org_train_dataset[i][1]))
+            noisy_label_list_n.append((data, noisy_train_dataset[i][1]))
         else:
-            noisy_index.append(i)
+            clean_label_list.append((data, org_train_dataset[i][1]))
 
-    # Filter Cleand and Noisy Data
-    clean_data = org_train_dataset.dataset.data[clean_index]
-    clean_label = np.array(org_train_dataset.dataset.targets)[clean_index]
-
-    noisy_data = noisy_train_dataset.dataset.data[noisy_index]
-    noisy_label_n = np.array(noisy_train_dataset.dataset.targets)[noisy_index]
-    noisy_label_c = np.array(org_train_dataset.dataset.targets)[noisy_index]
-
-    # Create Clean and Noisy Training Dataset
-    clean_dataset = datasets.ImageDataset(clean_data, clean_label)
-    noisy_dataset_n = datasets.ImageDataset(noisy_data, noisy_label_n)
-    noisy_dataset_c = datasets.ImageDataset(noisy_data, noisy_label_c)
+    clean_dataset = datasets.ListDataset(clean_label_list)
+    noisy_dataset_c = datasets.ListDataset(noisy_label_list_c)
+    noisy_dataset_n = datasets.ListDataset(noisy_label_list_n)
 
     # Create Clean and Noisy Training Dataloader
     clean_label_dataloader = main.DataLoaderX(clean_dataset, batch_size=batch_size, shuffle=False,
@@ -132,7 +130,7 @@ def get_hidden_features(dataset, model, dataloader):
         feature_size = model.n_hidden_units
     elif dataset == 'CIFAR-10':
         image_size = 32 * 32 * 3
-        feature_size = model.n_hidden_units * 8 * 64
+        feature_size = model.n_hidden_units * 8
     else:
         raise NotImplementedError
 
@@ -272,15 +270,15 @@ def decision_boundary_test(args, directory):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Double Descent Experiment')
-    parser.add_argument('--dataset', choices=['MNIST', 'CIFAR-10'], type=str, help='dataset')
-    parser.add_argument('--sample_size', type=int, help='number of samples used as training data')
-    parser.add_argument('--noise_ratio', type=float, help='label noise ratio')
-    parser.add_argument('--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str,
+    parser.add_argument('-d', '--dataset', choices=['MNIST', 'CIFAR-10'], type=str, help='dataset')
+    parser.add_argument('-N', '--sample_size', type=int, help='number of samples used as training data')
+    parser.add_argument('-p', '--noise_ratio', type=float, help='label noise ratio')
+    parser.add_argument('-m', '--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str,
                         help='neural network architecture')
 
-    parser.add_argument('--group', type=int, help='TEST GROUP')
-    parser.add_argument('--start', type=int, help='starting number of test number')
-    parser.add_argument('--end', type=int, help='ending number of test number')
+    parser.add_argument('-g', '--group', type=int, help='TEST GROUP')
+    parser.add_argument('-s', '--start', type=int, help='starting number of test number')
+    parser.add_argument('-e', '--end', type=int, help='ending number of test number')
 
     #parser.add_argument('--hidden_units', action='append', type=int, help='hidden units / layer width')
 
@@ -288,10 +286,10 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=128, type=int, help='batch size')
     parser.add_argument('--workers', default=0, type=int, help='number of data loading workers')
 
-    parser.add_argument('--gradient_step', default=100 * 1000, type=int, help='gradient steps used in experiment')
+    parser.add_argument('--steps', type=int, help='gradient steps used in experiment')
     parser.add_argument('--test-gap', default=10 * 1000, type=int, help='gradient step gap to test the model')
     parser.add_argument('--opt', default='sgd', type=str, help='use which optimizer. SGD or Adam')
-    parser.add_argument('--lr', default=0.1, type=float, help='learning rate')
+    parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
     # parser.add_argument('-momentum', default=0.0, type=float, help='momentum for SGD')
 
     args = parser.parse_args()
@@ -301,7 +299,7 @@ if __name__ == '__main__':
         hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
                         80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
     elif args.model == 'CNN' or args.model == 'ResNet18':
-        hidden_units = [2, 3, 5, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+        hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
     else:
         raise NotImplementedError
 
@@ -312,12 +310,12 @@ if __name__ == '__main__':
     print(torch.cuda.get_device_capability(0))
 
     train_accuracy, test_accuracy, train_losses, test_losses = [], [], [], []
-    knn_test, knn_5_accuracy_list = False, []
+    knn_test, knn_5_accuracy_list = True, []
 
     for test_number in range(args.start, args.end + 1):
         # Define the roots and paths
         directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d-sgd" \
-                % (args.sample_size, args.group, args.gradient_step // 1000, args.noise_ratio * 100, test_number)
+                % (args.sample_size, args.group, args.steps // 1000, args.noise_ratio * 100, test_number)
 
         train_accuracy.append([])
         test_accuracy.append([])
@@ -331,7 +329,7 @@ if __name__ == '__main__':
             with open(dictionary_path, "r", newline="") as infile:
                 reader = csv.DictReader(infile)
                 for row in reader:
-                    if int(row['Gradient Steps']) >= args.gradient_step:
+                    if int(row['Gradient Steps']) >= args.steps:
                         train_accuracy[-1].append(float(row['Train Accuracy']))
                         test_accuracy[-1].append(float(row['Test Accuracy']))
                         train_losses[-1].append(float(row['Train Loss']))
@@ -353,15 +351,20 @@ if __name__ == '__main__':
     scale_function = (lambda x: x ** (1 / 4), lambda x: x ** 4)
 
     fig, (ax1, ax3) = plt.subplots(nrows=2, ncols=1, figsize=(6, 8))
+    ax1.set_title(f'Experiment Results on {args.dataset} (N=%d, p=%d%%)' % (args.sample_size, args.noise_ratio * 100))
 
     if args.dataset == 'MNIST':
         ax1.set_xscale('function', functions=scale_function)
         ax1.set_xticks([1, 5, 15, 40, 100, 250, 500, 1000])
         ax3.set_xscale('function', functions=scale_function)
         ax3.set_xticks([1, 5, 15, 40, 100, 250, 500, 1000])
+
+        ax3.set_ylim([0.0, 1.75])
     elif args.dataset == 'CIFAR-10':
         ax1.set_xticks([1, 10, 20, 30, 40, 50, 60, 64])
         ax3.set_xticks([1, 10, 20, 30, 40, 50, 60, 64])
+
+        ax3.set_ylim([0.0, 3.0])
     else:
         raise NotImplementedError
 
@@ -382,7 +385,7 @@ if __name__ == '__main__':
 
     if knn_test and args.noise_ratio > 0:
         ax2 = ax1.twinx()
-        ln3 = ax2.plot(hidden_units, knn_5_accuracy_list, label='KNN Prediction Accuracy (k = 5)', color='cyan')
+        ln3 = ax2.plot(hidden_units, knn_5_accuracy_list, label='Prediction Accuracy', color='cyan')
         ax2.set_ylabel('KNN Label Accuracy (100%)')
         ax2.set_ylim([0, 1.05])
 
@@ -391,7 +394,7 @@ if __name__ == '__main__':
         lns = ln1 + ln2
 
     labs = [l.get_label() for l in lns]
-    ax1.legend(lns, labs, loc=0)
+    ax1.legend(lns, labs, loc='lower right')
     ax1.grid()
 
     # Subplot 2
@@ -401,10 +404,9 @@ if __name__ == '__main__':
 
     lns = ln6 + ln7
     labs = [l.get_label() for l in lns]
-    ax3.legend(lns, labs, loc=0)
+    ax3.legend(lns, labs, loc='upper right')
     ax3.grid()
 
     # Plot Title and Save
-    plt.title(f'Experiment Results on {args.dataset} (N=%d, p=%d%%)' % (args.sample_size, args.noise_ratio * 100))
     plt.savefig(f'assets/{args.dataset}-{args.model}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-ER.png' %
-                (args.sample_size, args.group, args.gradient_step // 1000, args.noise_ratio * 100))
+                (args.sample_size, args.group, args.steps // 1000, args.noise_ratio * 100))

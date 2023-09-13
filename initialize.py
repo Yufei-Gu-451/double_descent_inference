@@ -4,17 +4,17 @@ import os
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Double Descent Experiment')
-    parser.add_argument('--dataset', choices=['MNIST', 'CIFAR-10'], type=str, help='dataset')
-    parser.add_argument('--sample_size', type=int, help='number of samples used as training data')
-    parser.add_argument('--noise_ratio', type=float, help='label noise ratio')
-    parser.add_argument('--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str,
+    parser.add_argument('-d', '--dataset', choices=['MNIST', 'CIFAR-10'], type=str, help='dataset')
+    parser.add_argument('-N', '--sample_size', type=int, help='number of samples used as training data')
+    parser.add_argument('-p', '--noise_ratio', type=float, help='label noise ratio')
+    parser.add_argument('-m', '--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str,
                         help='neural network architecture')
 
-    parser.add_argument('--group', type=int, help='TEST GROUP')
-    parser.add_argument('--start', type=int, help='starting number of test number')
-    parser.add_argument('--end', type=int, help='ending number of test number')
+    parser.add_argument('-g', '--group', type=int, help='TEST GROUP')
+    parser.add_argument('-s', '--start', type=int, help='starting number of test number')
+    parser.add_argument('-e', '--end', type=int, help='ending number of test number')
 
-    parser.add_argument('--gradient_step', default=100 * 1000, type=int, help='gradient steps used in experiment')
+    parser.add_argument('--steps', type=int, help='gradient steps used in experiment')
 
     args = parser.parse_args()
     print(args)
@@ -22,7 +22,7 @@ if __name__ == '__main__':
 
     for test_number in range(args.start, args.end + 1):
         directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d-sgd" \
-                % (args.sample_size, args.group, args.gradient_step // 1000, args.noise_ratio * 100, test_number)
+                % (args.sample_size, args.group, args.steps // 1000, args.noise_ratio * 100, test_number)
 
         if not os.path.isdir(directory):
             os.mkdir(directory)
