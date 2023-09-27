@@ -1,13 +1,14 @@
 import torch
 import torchvision.datasets as datasets
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
 import numpy as np
 import argparse
 import csv
 import os
 
-import main2 as main
+import main
 import datasets
 import models
 
@@ -180,6 +181,11 @@ def knn_prediction_test(directory, hidden_units, args):
     else:
         raise NotImplementedError
 
+    # Create repository
+    tsne_directory = os.path.join(directory, 'tsne')
+    if not os.path.isdir(tsne_directory):
+        os.mkdir(tsne_directory)
+
     knn_5_accuracy_list = []
 
     for n in hidden_units:
@@ -199,73 +205,28 @@ def knn_prediction_test(directory, hidden_units, args):
         knn_5_accuracy_list.append(correct / n_noisy_data)
         print('Test No = %d ; Hidden Units = %d ; Correct = %d ; k = 5' % (test_number, n, correct))
 
+        # T-SNE Experiment
+        if n in [5, 10, 20, 25, 40, 80, 120, 400, 800]:
+            # Instantiate and fit t-SNE on the data
+            tsne = TSNE(n_components=2, random_state=42)
+            print(hidden_features.shape, hidden_features_2.shape)
+            X_tsne = tsne.fit_transform(np.concatenate((hidden_features, hidden_features_2)))
+            y_tsne = np.concatenate((labels, labels_2))
+
+            # Plot the t-SNE visualization
+            plt.figure(figsize=(10, 10))
+            plt.scatter(X_tsne[:800, 0], X_tsne[:800, 1], c=y_tsne[:800],
+                        marker='.', cmap=plt.cm.get_cmap("jet", 10))
+            plt.scatter(X_tsne[len(labels):len(labels)+200, 0], X_tsne[len(labels):len(labels)+200, 1],
+                        c=y_tsne[len(labels):len(labels)+200],
+                        marker='*', cmap=plt.cm.get_cmap("jet", 10))
+            plt.colorbar(ticks=range(10))
+            plt.title('t-SNE Visualization of ' + args.dataset)
+            plt.xlabel('t-SNE Dimension 1')
+            plt.ylabel('t-SNE Dimension 2')
+            plt.savefig(os.path.join(tsne_directory, '(k=%d) t-SNE Visualization.jpg' % n))
+
     return knn_5_accuracy_list
-
-
-def decision_boundary_test(args, directory):
-    print('\nDecision Boundary Test\n')
-    decision_boundary_distance = []
-
-    for test_number in [args.test_number_start, args.test_number_end + 1]:
-        dataset_path = os.path.join(directory, 'dataset')
-
-        # Load cleand and noisy dataloader
-        if args.dataset == 'MNIST':
-            clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
-                get_clean_noisy_dataloader_mnist(dataset_path, sample_size=args.sample_size,
-                                                 noise_ratio=args.noise_ratio, batch_size=args.batch_size)
-        elif args.dataset == 'CIFAR-10':
-            clean_label_dataloader, noisy_label_dataloader_c, noisy_label_dataloader_n, n_noisy_data = \
-                get_clean_noisy_dataloader_cifar(dataset_path, sample_size=args.sample_size,
-                                                 noise_ratio=args.noise_ratio,
-                                                 batch_size=args.batch_size)
-        else:
-            raise NotImplementedError
-
-        decision_boundary_distance.append([])
-
-        for n in args.hidden_units:
-            # Initialize model with pretrained weights
-            checkpoint_path = os.path.join(directory, "ckpt")
-            model = load_model(checkpoint_path, dataset=args.dataset, hidden_unit=n)
-            model.eval()
-
-            # Obtain the hidden features of the clean data set
-            data, hidden_features, predicts, labels = get_hidden_features(args.dataset, model, clean_label_dataloader)
-            data_3, hidden_features_3, predicts_3, labels_3 = get_hidden_features(args.dataset, model, noisy_label_dataloader_n)
-
-            knn = KNeighborsClassifier(n_neighbors=10, metric='cosine')
-            knn.fit(hidden_features, labels)
-            neigh_dist, neigh_ind = knn.kneighbors(hidden_features_3)
-
-            db_distance_list = []
-            for noise_idx in range(n_noisy_data):
-                for neigh_idx in neigh_ind[noise_idx]:
-                    vector = hidden_features[neigh_idx] - hidden_features_3[noise_idx]
-                    distance = vector
-                    lr = 1
-
-                    for k in range(10):
-                        output = model(torch.from_numpy(hidden_features_3[noise_idx] + distance), path='half2')
-                        predicted = output.argmax()
-
-                        if predicted.eq(labels_3[noise_idx]):
-                            distance = distance + vector * lr
-                        else:
-                            lr = lr / 2
-                            distance = distance - vector * lr
-
-                    if np.linalg.norm(vector) == 0:
-                        break
-                    n = np.linalg.norm(distance) / np.linalg.norm(vector)
-                    db_distance_list.append(n)
-
-            decision_boundary_distance[-1].append(np.mean(np.array(db_distance_list)))
-            print(n, decision_boundary_distance[-1])
-
-    decision_boundary_distance = np.mean(np.array(decision_boundary_distance), axis=0)
-
-    return decision_boundary_distance
 
 
 if __name__ == '__main__':
@@ -337,7 +298,7 @@ if __name__ == '__main__':
 
         # Run KNN Test
         if knn_test and args.noise_ratio > 0:
-           knn_5_accuracy_list.append(knn_prediction_test(directory, hidden_units, args))
+            knn_5_accuracy_list.append(knn_prediction_test(directory, hidden_units, args))
 
     train_accuracy = np.mean(np.array(train_accuracy), axis=0)
     test_accuracy = np.mean(np.array(test_accuracy), axis=0)
@@ -345,6 +306,7 @@ if __name__ == '__main__':
     test_losses = np.mean(np.array(test_losses), axis=0)
 
     if knn_test and args.noise_ratio > 0:
+        print(np.array(knn_5_accuracy_list))
         knn_5_accuracy_list = np.mean(np.array(knn_5_accuracy_list), axis=0)
 
     # Plot the Diagram
@@ -402,6 +364,8 @@ if __name__ == '__main__':
     ln7 = ax3.plot(hidden_units, test_losses, label='Test Losses', color='blue')
     ax3.set_ylabel('Cross Entropy Loss')
 
+    print(train_losses, test_losses)
+
     lns = ln6 + ln7
     labs = [l.get_label() for l in lns]
     ax3.legend(lns, labs, loc='upper right')
@@ -409,4 +373,4 @@ if __name__ == '__main__':
 
     # Plot Title and Save
     plt.savefig(f'assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/{args.dataset}-{args.model}-p=%d.png' %
-                (args.sample_size, args.group, args.noise_ratio))
+                (args.sample_size, args.group, args.noise_ratio * 100))

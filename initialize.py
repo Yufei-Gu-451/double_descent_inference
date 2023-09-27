@@ -25,8 +25,6 @@ if __name__ == '__main__':
         os.mkdir((f"data/MNIST"))
     elif args.dataset == 'CIFAR-10' and not os.path.isdir(f"data/CIFAR-10"):
         os.mkdir((f"data/CIFAR-10"))
-    else:
-        raise NotImplementedError
 
     if not os.path.isdir(f"assets"):
         os.mkdir(f"assets")
