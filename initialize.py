@@ -14,15 +14,32 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--start', type=int, help='starting number of test number')
     parser.add_argument('-e', '--end', type=int, help='ending number of test number')
 
-    parser.add_argument('--steps', type=int, help='gradient steps used in experiment')
+    parser.add_argument('--epochs', type=int, help='epochs of training time')
 
     args = parser.parse_args()
     print(args)
 
+    if not os.path.isdir(f"data"):
+        os.mkdir(f"data")
+    if args.dataset == 'MNIST' and not os.path.isdir(f"data/MNIST"):
+        os.mkdir((f"data/MNIST"))
+    elif args.dataset == 'CIFAR-10' and not os.path.isdir(f"data/CIFAR-10"):
+        os.mkdir((f"data/CIFAR-10"))
+    else:
+        raise NotImplementedError
+
+    if not os.path.isdir(f"assets"):
+        os.mkdir(f"assets")
+    if not os.path.isdir(f"assets/{args.dataset}-{args.model}"):
+        os.mkdir(f"assets/{args.dataset}-{args.model}")
+    if not os.path.isdir(f"assets/{args.dataset}-{args.model}/N=%d-3d" % args.sample_size):
+        os.mkdir(f"assets/{args.dataset}-{args.model}/N=%d-3d" % args.sample_size)
+    if not os.path.isdir(f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d" % (args.sample_size, args.group)):
+        os.mkdir(f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d" % (args.sample_size, args.group))
 
     for test_number in range(args.start, args.end + 1):
-        directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d-sgd" \
-                % (args.sample_size, args.group, args.steps // 1000, args.noise_ratio * 100, test_number)
+        directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/Epoch=%d-noise-%d-model-%d-sgd" \
+                    % (args.sample_size, args.group, args.epochs, args.noise_ratio * 100, test_number)
 
         if not os.path.isdir(directory):
             os.mkdir(directory)

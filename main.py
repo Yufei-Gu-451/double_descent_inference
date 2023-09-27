@@ -24,11 +24,11 @@ class DataLoaderX(DataLoader):
 def get_train_and_test_dataloader(args, dataset_path):
     train_dataset = datasets.load_train_dataset_from_file(label_noise_ratio=args.noise_ratio, dataset_path=dataset_path)
 
-    train_dataloader = DataLoaderX(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=0, pin_memory=True)
+    train_dataloader = DataLoaderX(train_dataset, batch_size=args.batch_size, shuffle=True, num_workers=2, pin_memory=True)
 
     test_dataset = datasets.get_test_dataset(DATASET=args.dataset)
 
-    test_dataloader = DataLoaderX(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=0, pin_memory=True)
+    test_dataloader = DataLoaderX(test_dataset, batch_size=args.batch_size, shuffle=False, num_workers=2, pin_memory=True)
 
     print(f'Load {args.dataset} dataset success;')
 
@@ -68,23 +68,23 @@ def get_model(dataset, model_name, hidden_unit, device):
 # ------------------------------------------------------------------------------------------
 
 
-def model_save(model, gradient_step, test_accuracy, checkpoint_path):
+def model_save(model, epoch, test_accuracy, checkpoint_path):
     state = {
         'net': model.state_dict(),
         'acc': test_accuracy,
-        'gradient_step': gradient_step,
+        'epoch': epoch,
     }
 
     torch.save(state, os.path.join(checkpoint_path, 'Model_State_Dict_%d.pth' % hidden_unit))
     print("Torch saved successfully!\n")
 
-def status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr,
+def status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc, lr,
                 time, curr_time, dictionary_path):
     print("Hidden Neurons : %d ; Parameters : %d ; Train Loss : %.3f ; Train Acc : %.3f ; Test Loss : %.3f ; "
           "Test Acc : %.3f\n" % (n_hidden_units, parameters, train_loss, train_acc, test_loss, test_acc))
 
     print('Writing to a csv file...')
-    dictionary = {'Hidden Neurons': hidden_unit, 'Gradient Steps': gradient_step, 'Parameters': parameters,
+    dictionary = {'Hidden Neurons': hidden_unit, 'Epochs': epoch, 'Parameters': parameters,
                   'Train Loss': train_loss, 'Train Accuracy': train_acc, 'Test Loss': test_loss, 'Test Accuracy': test_acc,
                   'Learning Rate': lr, 'Time Cost': time, 'Date-Time': curr_time}
 
@@ -106,19 +106,14 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
 
     parameters = sum(p.numel() for p in model.parameters())
     n_hidden_units = model.n_hidden_units
+    test_acc = 0
 
-    gradient_step, gs_count, test_acc = 0, 0, 0
-
-    while gradient_step <= args.steps:
+    for epoch in range(1, args.epochs + 1):
         # Model Training
         model.train()
         cumulative_loss, correct, total, idx = 0.0, 0, 0, 0
 
         for idx, (inputs, labels) in enumerate(train_dataloader):
-            gradient_step += 1
-            if gradient_step % 512 == 0:
-                optimizer.param_groups[0]['lr'] = args.lr / pow(gradient_step // 512, 0.5)
-
             labels = torch.nn.functional.one_hot(labels, num_classes=10).float()
             inputs = inputs.to(device, non_blocking=True)
             labels = labels.to(device, non_blocking=True)
@@ -138,11 +133,17 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
         train_acc = correct / total
 
         lr = optimizer.param_groups[0]['lr']
-        print("Gradient Step : %d(K) ; Train Loss : %f ; Train Acc : %.3f ; Learning Rate : %f" %
-             (gradient_step // 1000, train_loss, train_acc, lr))
+        print("Epoch : %d ; Train Loss : %f ; Train Acc : %.3f ; Learning Rate : %f" %
+             (epoch, train_loss, train_acc, lr))
 
-        # Test Model after every 10K Gradient Steps
-        if gradient_step // args.test_gap > gs_count:
+        if epoch % 50 == 0:
+            if args.dataset == 'MNIST':
+                optimizer.param_groups[0]['lr'] = args.lr / pow(1 + epoch // 50, 0.5)
+            elif args.dataset == 'CIFAR-10':
+                optimizer.param_groups[0]['lr'] = args.lr / pow(1 + epoch * 10, 0.5)
+            else:
+                raise NotImplementedError
+
             # Test Model
             model.eval()
             cumulative_loss, correct, total, idx = 0.0, 0, 0, 0
@@ -166,12 +167,11 @@ def train_and_evaluate_model(model, device, args, train_dataloader, test_dataloa
 
             curr_time = datetime.now()
             time = (curr_time - start_time).seconds / 60
-            gs_count = gradient_step // args.test_gap
 
-            status_save(n_hidden_units, gradient_step, parameters, train_loss, train_acc, test_loss, test_acc, lr,
+            status_save(n_hidden_units, epoch, parameters, train_loss, train_acc, test_loss, test_acc, lr,
                         time, curr_time, dictionary_path=dictionary_path)
 
-    model_save(model, test_acc, gradient_step, checkpoint_path=checkpoint_path)
+    model_save(model, test_acc, epoch, checkpoint_path=checkpoint_path)
 
     return
 
@@ -185,7 +185,8 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dataset', choices=['MNIST', 'CIFAR-10'], type=str, help='dataset')
     parser.add_argument('-N', '--sample_size', type=int, help='number of samples used as training data')
     parser.add_argument('-p', '--noise_ratio', type=float, help='label noise ratio')
-    parser.add_argument('-m', '--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str, help='neural network architecture')
+    parser.add_argument('-m', '--model', choices=['SimpleFC', 'CNN', 'ResNet18'], type=str,
+                        help='neural network architecture')
 
     parser.add_argument('-g', '--group', type=int, help='TEST GROUP')
     parser.add_argument('-s', '--start', type=int, help='starting number of test number')
@@ -197,7 +198,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=128, type=int, help='batch size')
     parser.add_argument('--workers', default=0, type=int, help='number of data loading workers')
 
-    parser.add_argument('--steps', type=int, help='gradient steps used in experiment')
+    parser.add_argument('--epochs', type=int, help='epochs of training time')
     parser.add_argument('--test-gap', default=10 * 1000, type=int, help='gradient step gap to test the model')
     parser.add_argument('--opt', default='sgd', type=str, help='use which optimizer. SGD or Adam')
     parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
@@ -232,8 +233,8 @@ if __name__ == '__main__':
         setup_seed(20 + test_number)
 
         # Define the roots and paths
-        directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d-sgd" \
-                % (args.sample_size, args.group, args.steps // 1000, args.noise_ratio * 100, test_number)
+        directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/Epoch=%d-noise-%d-model-%d-sgd" \
+                % (args.sample_size, args.group, args.epochs, args.noise_ratio * 100, test_number)
 
         dataset_path = os.path.join(directory, 'dataset')
         checkpoint_path = os.path.join(directory, "ckpt")
@@ -257,7 +258,7 @@ if __name__ == '__main__':
             dictionary_n_path = os.path.join(dictionary_path, "dictionary_%d.csv" % hidden_unit)
 
             # Initialize Status Dictionary
-            dictionary = {'Hidden Neurons': 0, 'Gradient Steps': 0, 'Parameters': 0, 'Train Loss': 0, 'Train Accuracy': 0,
+            dictionary = {'Hidden Neurons': 0, 'Epochs': 0, 'Parameters': 0, 'Train Loss': 0, 'Train Accuracy': 0,
                           'Test Loss': 0, 'Test Accuracy': 0, 'Learning Rate': 0, 'Time Cost': 0, 'Date-Time': 0}
 
             with open(dictionary_n_path, "w", newline="") as fp:

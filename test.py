@@ -7,7 +7,7 @@ import argparse
 import csv
 import os
 
-import main
+import main2 as main
 import datasets
 import models
 
@@ -286,7 +286,7 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', default=128, type=int, help='batch size')
     parser.add_argument('--workers', default=0, type=int, help='number of data loading workers')
 
-    parser.add_argument('--steps', type=int, help='gradient steps used in experiment')
+    parser.add_argument('--epochs', type=int, help='epochs of training time')
     parser.add_argument('--test-gap', default=10 * 1000, type=int, help='gradient step gap to test the model')
     parser.add_argument('--opt', default='sgd', type=str, help='use which optimizer. SGD or Adam')
     parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
@@ -314,8 +314,8 @@ if __name__ == '__main__':
 
     for test_number in range(args.start, args.end + 1):
         # Define the roots and paths
-        directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/GS=%dK-noise-%d-model-%d-sgd" \
-                % (args.sample_size, args.group, args.steps // 1000, args.noise_ratio * 100, test_number)
+        directory = f"assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/Epoch=%d-noise-%d-model-%d-sgd" \
+                % (args.sample_size, args.group, args.epochs, args.noise_ratio * 100, test_number)
 
         train_accuracy.append([])
         test_accuracy.append([])
@@ -329,7 +329,7 @@ if __name__ == '__main__':
             with open(dictionary_path, "r", newline="") as infile:
                 reader = csv.DictReader(infile)
                 for row in reader:
-                    if int(row['Gradient Steps']) >= args.steps:
+                    if int(row['Epochs']) == args.epochs:
                         train_accuracy[-1].append(float(row['Train Accuracy']))
                         test_accuracy[-1].append(float(row['Test Accuracy']))
                         train_losses[-1].append(float(row['Train Loss']))
@@ -408,5 +408,5 @@ if __name__ == '__main__':
     ax3.grid()
 
     # Plot Title and Save
-    plt.savefig(f'assets/{args.dataset}-{args.model}/N=%d-3D/TEST-%d/GS=%dK-noise-%d-ER.png' %
-                (args.sample_size, args.group, args.steps // 1000, args.noise_ratio * 100))
+    plt.savefig(f'assets/{args.dataset}-{args.model}/N=%d-3d/TEST-%d/{args.dataset}-{args.model}-p=%d.png' %
+                (args.sample_size, args.group, args.noise_ratio))
