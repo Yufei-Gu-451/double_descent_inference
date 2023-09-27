@@ -1,19 +1,19 @@
 {
-    "executor": "python main.py",
-    "cuda": [1,1,1,1,1,1],
+    "executor": "python main2.py",
+    "cuda": [0,0,0,0,0,0],
     "concurrency": 6,
     "configs": {
         "==base==": [
             "--dataset",            ["CIFAR-10"],
             "--sample_size",        ["50000"],
-            "--noise_ratio",        ["0.0"],
-            "--model",              ["ResNet18"],
+            "--noise_ratio",        ["0.4"],
+            "--model",              ["CNN"],
 
-            "--group",              ["0"],
+            "--group",              ["2"],
             "--start",              ["1"],
             "--end",                ["1"],
 
-            "--steps",              ["100000"]
+            "--epochs",              ["200"]
         ],
         "==more==": [
             [
