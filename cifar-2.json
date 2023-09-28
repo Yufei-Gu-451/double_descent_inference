@@ -1,7 +1,7 @@
 {
     "executor": "python main.py",
-    "cuda": [0,0,0,0,0,0],
-    "concurrency": 6,
+    "cuda": [0,0,0,0],
+    "concurrency": 4,
     "configs": {
         "==base==": [
             "--dataset",            ["CIFAR-10"],
@@ -10,8 +10,8 @@
             "--model",              ["CNN"],
 
             "--group",              ["2"],
-            "--start",              ["2"],
-            "--end",                ["2"],
+            "--start",              ["3"],
+            "--end",                ["3"],
 
             "--epochs",              ["200"]
         ],
@@ -20,15 +20,13 @@
                 "--hidden_units",   ["64"],
                 "--hidden_units",   ["60"],
                 "--hidden_units",   ["56"],
-                "--hidden_units",   ["52"]
-            ],
-            [
+                "--hidden_units",   ["52"],
                 "--hidden_units",   ["48"],
-                "--hidden_units",   ["44"],
-                "--hidden_units",   ["40"],
-                "--hidden_units",   ["36"]
+                "--hidden_units",   ["44"]
             ],
             [
+                "--hidden_units",   ["40"],
+                "--hidden_units",   ["36"],
                 "--hidden_units",   ["32"],
                 "--hidden_units",   ["28"],
                 "--hidden_units",   ["24"],
@@ -38,15 +36,13 @@
                 "--hidden_units",   ["18"],
                 "--hidden_units",   ["16"],
                 "--hidden_units",   ["14"],
-                "--hidden_units",   ["12"]
-            ],
-            [
+                "--hidden_units",   ["12"],
                 "--hidden_units",   ["10"],
-                "--hidden_units",   ["8"],
-                "--hidden_units",   ["6"],
-                "--hidden_units",   ["5"]
+                "--hidden_units",   ["8"]
             ],
             [
+                "--hidden_units",   ["6"],
+                "--hidden_units",   ["5"],
                 "--hidden_units",   ["4"],
                 "--hidden_units",   ["3"],
                 "--hidden_units",   ["2"],

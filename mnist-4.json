@@ -1,17 +1,17 @@
 {
     "executor": "python main.py",
-    "cuda": [0,0,0,0,0,0,0],
-    "concurrency": 7,
+    "cuda": [0,0,0,0],
+    "concurrency": 4,
     "configs": {
         "==base==": [
             "--dataset",            ["MNIST"],
             "--sample_size",        ["4000"],
-            "--noise_ratio",        ["0.4"],
+            "--noise_ratio",        ["0.1"],
             "--model",              ["SimpleFC"],
 
             "--group",              ["2"],
-            "--start",              ["1"],
-            "--end",                ["1"],
+            "--start",              ["3"],
+            "--end",                ["3"],
 
             "--epochs",              ["4000"]
         ],
@@ -21,44 +21,38 @@
                 "--hidden_units",   ["800"],
                 "--hidden_units",   ["600"],
                 "--hidden_units",   ["400"],
-                "--hidden_units",   ["200"]
-            ],
-            [
+                "--hidden_units",   ["200"],
                 "--hidden_units",   ["150"],
                 "--hidden_units",   ["120"],
-                "--hidden_units",   ["100"],
-                "--hidden_units",   ["90"],
-                "--hidden_units",   ["80"]
+                "--hidden_units",   ["100"]
             ],
             [
+                "--hidden_units",   ["90"],
+                "--hidden_units",   ["80"],
                 "--hidden_units",   ["70"],
                 "--hidden_units",   ["60"],
                 "--hidden_units",   ["55"],
                 "--hidden_units",   ["50"],
-                "--hidden_units",   ["45"]
+                "--hidden_units",   ["45"],
+                "--hidden_units",   ["40"],
+                "--hidden_units",   ["35"]
             ],
             [
-                "--hidden_units",   ["40"],
-                "--hidden_units",   ["35"],
                 "--hidden_units",   ["30"],
                 "--hidden_units",   ["25"],
-                "--hidden_units",   ["22"]
-            ],
-            [
+                "--hidden_units",   ["22"],
                 "--hidden_units",   ["20"],
                 "--hidden_units",   ["18"],
                 "--hidden_units",   ["16"],
                 "--hidden_units",   ["14"],
-                "--hidden_units",   ["12"]
+                "--hidden_units",   ["12"],
+                "--hidden_units",   ["10"]
             ],
             [
-                "--hidden_units",   ["10"],
                 "--hidden_units",   ["9"],
                 "--hidden_units",   ["8"],
                 "--hidden_units",   ["7"],
-                "--hidden_units",   ["6"]
-            ],
-            [
+                "--hidden_units",   ["6"],
                 "--hidden_units",   ["5"],
                 "--hidden_units",   ["4"],
                 "--hidden_units",   ["3"],

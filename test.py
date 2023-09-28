@@ -3,6 +3,7 @@ import torchvision.datasets as datasets
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
 import matplotlib.pyplot as plt
+from matplotlib.cm import ScalarMappable
 import numpy as np
 import argparse
 import csv
@@ -187,6 +188,8 @@ def knn_prediction_test(directory, hidden_units, args):
         os.mkdir(tsne_directory)
 
     knn_5_accuracy_list = []
+    X_tsne = []
+    y_tsne = []
 
     for n in hidden_units:
         # Initialize model with pretrained weights
@@ -206,25 +209,61 @@ def knn_prediction_test(directory, hidden_units, args):
         print('Test No = %d ; Hidden Units = %d ; Correct = %d ; k = 5' % (test_number, n, correct))
 
         # T-SNE Experiment
-        if n in [5, 10, 20, 25, 40, 80, 120, 400, 800]:
-            # Instantiate and fit t-SNE on the data
-            tsne = TSNE(n_components=2, random_state=42)
-            print(hidden_features.shape, hidden_features_2.shape)
-            X_tsne = tsne.fit_transform(np.concatenate((hidden_features, hidden_features_2)))
-            y_tsne = np.concatenate((labels, labels_2))
+        if args.tsne:
+            if (args.model == 'SimpleFC' and n in [10, 20, 100]) \
+                    or (args.model in ['CNN', 'ResNet18'] and n in [6, 12, 36]):
+                # Instantiate and fit t-SNE on the data
+                tsne = TSNE(n_components=2, random_state=42)
+                print(hidden_features.shape, hidden_features_2.shape)
+                X_tsne.append(tsne.fit_transform(np.concatenate((hidden_features, hidden_features_2))))
+                y_tsne.append(np.concatenate((labels, labels_2)))
 
-            # Plot the t-SNE visualization
-            plt.figure(figsize=(10, 10))
-            plt.scatter(X_tsne[:800, 0], X_tsne[:800, 1], c=y_tsne[:800],
-                        marker='.', cmap=plt.cm.get_cmap("jet", 10))
-            plt.scatter(X_tsne[len(labels):len(labels)+200, 0], X_tsne[len(labels):len(labels)+200, 1],
-                        c=y_tsne[len(labels):len(labels)+200],
-                        marker='*', cmap=plt.cm.get_cmap("jet", 10))
-            plt.colorbar(ticks=range(10))
-            plt.title('t-SNE Visualization of ' + args.dataset)
-            plt.xlabel('t-SNE Dimension 1')
-            plt.ylabel('t-SNE Dimension 2')
-            plt.savefig(os.path.join(tsne_directory, '(k=%d) t-SNE Visualization.jpg' % n))
+    if args.tsne:
+        # Plot the t-SNE visualization
+        fig, (ax1, ax2, ax3) = plt.subplots(nrows=1, ncols=3, figsize=(20, 8))
+
+        if args.model == 'SimpleFC':
+            ax1.set_title(args.model + ' (k=10)')
+            ax2.set_title(args.model + ' (k=20)')
+            ax3.set_title(args.model + ' (k=100)')
+        elif args.model == 'CNN' or args.model == 'ResNet18':
+            ax1.set_title(args.model + ' (k=6)')
+            ax2.set_title(args.model + ' (k=12)')
+            ax3.set_title(args.model + ' (k=36)')
+        else:
+            raise NotImplementedError
+
+        ax1.scatter(X_tsne[0][:800, 0], X_tsne[0][:800, 1], c=y_tsne[0][:800],
+                    marker='.', cmap=plt.cm.get_cmap("jet", 10))
+        ax1.scatter(X_tsne[0][len(labels):len(labels) + 200, 0], X_tsne[0][len(labels):len(labels) + 200, 1],
+                    c=y_tsne[0][len(labels):len(labels) + 200],
+                    marker='*', cmap=plt.cm.get_cmap("jet", 10))
+        ax1.set_xlabel('t-SNE Dimension 1')
+        ax1.set_ylabel('t-SNE Dimension 2')
+
+        ax2.scatter(X_tsne[1][:800, 0], X_tsne[1][:800, 1], c=y_tsne[1][:800],
+                    marker='.', cmap=plt.cm.get_cmap("jet", 10))
+        ax2.scatter(X_tsne[1][len(labels):len(labels) + 200, 0], X_tsne[1][len(labels):len(labels) + 200, 1],
+                    c=y_tsne[1][len(labels):len(labels) + 200],
+                    marker='*', cmap=plt.cm.get_cmap("jet", 10))
+        ax2.set_xlabel('t-SNE Dimension 1')
+        #ax2.set_ylabel('t-SNE Dimension 2')
+
+        ax3.scatter(X_tsne[2][:800, 0], X_tsne[2][:800, 1], c=y_tsne[2][:800],
+                    marker='.', cmap=plt.cm.get_cmap("jet", 10))
+        ax3.scatter(X_tsne[2][len(labels):len(labels) + 200, 0], X_tsne[2][len(labels):len(labels) + 200, 1],
+                    c=y_tsne[2][len(labels):len(labels) + 200],
+                    marker='*', cmap=plt.cm.get_cmap("jet", 10))
+        ax3.set_xlabel('t-SNE Dimension 1')
+        #ax3.set_ylabel('t-SNE Dimension 2')
+
+        sm = ScalarMappable(cmap=plt.cm.get_cmap("jet", 10))
+        sm.set_array([])
+        cbar = fig.colorbar(sm)
+
+        fig.suptitle('t-SNE Visualization of Learned Representations of Random Training Samples', fontsize=20)
+        plt.savefig(os.path.join('images', args.model + '_tSNE_Visualization_org'))
+
 
     return knn_5_accuracy_list
 
@@ -253,16 +292,26 @@ if __name__ == '__main__':
     parser.add_argument('--lr', default=0.05, type=float, help='learning rate')
     # parser.add_argument('-momentum', default=0.0, type=float, help='momentum for SGD')
 
+    parser.add_argument('--tsne', default=False, type=bool, help='perform T-SNE experiment in test')
+
     args = parser.parse_args()
     print(args)
 
-    if args.model == 'SimpleFC':
-        hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
-                        80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
-    elif args.model == 'CNN' or args.model == 'ResNet18':
-        hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+    if not args.tsne:
+        if args.model == 'SimpleFC':
+            hidden_units = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 14, 16, 18, 20, 22, 25, 30, 35, 40, 45, 50, 55, 60, 70,
+                            80, 90, 100, 120, 150, 200, 400, 600, 800, 1000]
+        elif args.model == 'CNN' or args.model == 'ResNet18':
+            hidden_units = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64]
+        else:
+            raise NotImplementedError
     else:
-        raise NotImplementedError
+        if args.model == 'SimpleFC':
+            hidden_units = [10, 20, 100]
+        elif args.model == 'CNN' or args.model == 'ResNet18':
+            hidden_units = [6, 12, 36]
+        else:
+            raise NotImplementedError
 
     # Initialization of used device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

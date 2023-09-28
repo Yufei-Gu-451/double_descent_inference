@@ -1,0 +1,21 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\multiprocessing\spawn.py", line 116, in spawn_main
+    exitcode = _main(fd, parent_sentinel)
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\multiprocessing\spawn.py", line 125, in _main
+    prepare(preparation_data)
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\multiprocessing\spawn.py", line 236, in prepare
+    _fixup_main_from_path(data['init_main_from_path'])
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\multiprocessing\spawn.py", line 287, in _fixup_main_from_path
+    main_content = runpy.run_path(main_path,
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\runpy.py", line 265, in run_path
+    return _run_module_code(code, init_globals, run_name,
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\runpy.py", line 97, in _run_module_code
+    _run_code(code, mod_globals, init_globals,
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\runpy.py", line 87, in _run_code
+    exec(code, run_globals)
+  File "C:\Users\yufei\PycharmProjects\double_descent_inference\main.py", line 1, in <module>
+    import torch
+  File "C:\Users\yufei\miniconda3\envs\python3.8\lib\site-packages\torch\__init__.py", line 128, in <module>
+    raise err
+OSError: [WinError 1455] \u9875\u9762\u6587\u4ef6\u592a\u5c0f\uff0c\u65e0\u6cd5\u5b8c\u6210\u64cd\u4f5c\u3002 Error loading "C:\Users\yufei\miniconda3\envs\python3.8\lib\site-packages\torch\lib\cudnn_cnn_train64_8.dll" or one of its dependencies.
