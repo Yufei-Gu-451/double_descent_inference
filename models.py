@@ -92,6 +92,11 @@ def ResNet18(k):
 
 # Standard CNN ----------------------------------------------------------------------------------
 
+'''
+Reference:
+[2] https://gitlab.com/harvard-machine-learning/double-descent
+'''
+
 class Flatten(nn.Module):
     def forward(self, x):
         return x.view(x.size(0), x.size(1))

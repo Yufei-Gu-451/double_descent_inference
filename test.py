@@ -2,6 +2,7 @@ import torch
 import torchvision.datasets as datasets
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.manifold import TSNE
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.cm import ScalarMappable
 import numpy as np
@@ -186,6 +187,8 @@ def knn_prediction_test(directory, hidden_units, args):
     tsne_directory = os.path.join(directory, 'tsne')
     if not os.path.isdir(tsne_directory):
         os.mkdir(tsne_directory)
+    if not os.path.isdir('images'):
+        os.mkdir('images')
 
     knn_5_accuracy_list = []
     X_tsne = []
@@ -210,13 +213,11 @@ def knn_prediction_test(directory, hidden_units, args):
 
         # T-SNE Experiment
         if args.tsne:
-            if (args.model == 'SimpleFC' and n in [10, 20, 100]) \
-                    or (args.model in ['CNN', 'ResNet18'] and n in [6, 12, 36]):
-                # Instantiate and fit t-SNE on the data
-                tsne = TSNE(n_components=2, random_state=42)
-                print(hidden_features.shape, hidden_features_2.shape)
-                X_tsne.append(tsne.fit_transform(np.concatenate((hidden_features, hidden_features_2))))
-                y_tsne.append(np.concatenate((labels, labels_2)))
+            # Instantiate and fit t-SNE on the data
+            tsne = TSNE(n_components=2, random_state=42)
+            print(hidden_features.shape, hidden_features_2.shape)
+            X_tsne.append(tsne.fit_transform(np.concatenate((hidden_features, hidden_features_2))))
+            y_tsne.append(np.concatenate((labels, labels_2)))
 
     if args.tsne:
         # Plot the t-SNE visualization
@@ -229,7 +230,7 @@ def knn_prediction_test(directory, hidden_units, args):
         elif args.model == 'CNN' or args.model == 'ResNet18':
             ax1.set_title(args.model + ' (k=6)')
             ax2.set_title(args.model + ' (k=12)')
-            ax3.set_title(args.model + ' (k=36)')
+            ax3.set_title(args.model + ' (k=48)')
         else:
             raise NotImplementedError
 
@@ -257,7 +258,8 @@ def knn_prediction_test(directory, hidden_units, args):
         ax3.set_xlabel('t-SNE Dimension 1')
         #ax3.set_ylabel('t-SNE Dimension 2')
 
-        sm = ScalarMappable(cmap=plt.cm.get_cmap("jet", 10))
+        norm = matplotlib.colors.Normalize(vmin=0, vmax=9)
+        sm = ScalarMappable(norm=norm, cmap=plt.cm.get_cmap("jet", 10))
         sm.set_array([])
         cbar = fig.colorbar(sm)
 
@@ -309,7 +311,7 @@ if __name__ == '__main__':
         if args.model == 'SimpleFC':
             hidden_units = [10, 20, 100]
         elif args.model == 'CNN' or args.model == 'ResNet18':
-            hidden_units = [6, 12, 36]
+            hidden_units = [6, 12, 48]
         else:
             raise NotImplementedError
 
